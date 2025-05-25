@@ -87,47 +87,93 @@ class FileSender : Service() {
         }
 
         Log.d(TAG, "Sending file ${file.name} (${file.length()} bytes) to $host:$port")
-        updateNotification("Sending ${file.name}...")
-
-        // Create metadata
+        updateNotification("Sending ${file.name}...")        // Create metadata
         val metadata = FileTransferMetadata(
             fileName = file.name,
             fileSize = file.length(),
             mimeType = Utils.getMimeType(file.name)
         )
 
-        val socket = Socket()
-        try {
-            socket.connect(InetSocketAddress(host, port), Config.SOCKET_TIMEOUT)
-              val inputStream = FileInputStream(file).buffered()
-            val outputStream = socket.getOutputStream().buffered()
-            
-            // Send metadata first
-            Utils.sendMetadata(outputStream, metadata)
-            
-            // Send file with progress tracking
-            val success = sendFileWithProgress(inputStream, outputStream, metadata)
-            
-            if (success) {
-                Log.d(TAG, "File sent successfully")
-                updateNotification("File sent successfully")
-            } else {
-                Log.e(TAG, "Failed to send file")
-                updateNotification("Failed to send file")
-            }
-            
-            // Keep notification for a brief moment
-            delay(3000)
-            
-        } catch (e: IOException) {
-            Log.e(TAG, "Failed to send file", e)
-            updateNotification("Failed to send file: ${e.message}")
-            delay(5000)
-        } finally {
-            try {
-                socket.close()
-            } catch (e: Exception) {
-                Log.w(TAG, "Error closing socket", e)
+        val maxConnectionRetries = Config.MAX_RETRIES
+        var connectionSuccess = false
+        
+        for (connectionAttempt in 1..maxConnectionRetries) {
+            val socket = Socket()
+            try {                // Configure socket for better stability
+                socket.soTimeout = Config.SOCKET_READ_TIMEOUT  // Use longer timeout for data transfer
+                socket.tcpNoDelay = true
+                socket.keepAlive = true
+                socket.setSoLinger(true, 10)  // Wait up to 10 seconds for clean shutdown
+                
+                updateNotification("Connecting to device (attempt $connectionAttempt)...")
+                Log.d(TAG, "Connection attempt $connectionAttempt to $host:$port")
+                
+                socket.connect(InetSocketAddress(host, port), Config.SOCKET_TIMEOUT)
+                
+                updateNotification("Connected! Sending ${file.name}...")
+                Log.d(TAG, "Successfully connected to $host:$port")
+                
+                val inputStream = FileInputStream(file).buffered()
+                val outputStream = socket.getOutputStream().buffered()
+                
+                // Send metadata first
+                Utils.sendMetadata(outputStream, metadata)
+                
+                // Send file with progress tracking and retry logic
+                val success = sendFileWithProgress(inputStream, outputStream, metadata)
+                
+                if (success) {
+                    Log.d(TAG, "File sent successfully")
+                    updateNotification("File sent successfully")
+                    connectionSuccess = true
+                } else {
+                    Log.e(TAG, "Failed to send file content")
+                    updateNotification("Failed to send file content")
+                }
+                
+                // Keep notification for a brief moment
+                delay(3000)
+                break // Exit retry loop on successful connection
+                
+            } catch (e: java.net.ConnectException) {
+                Log.w(TAG, "Connection attempt $connectionAttempt failed: ${e.message}")
+                updateNotification("Connection failed (attempt $connectionAttempt/$maxConnectionRetries)")
+                
+                if (connectionAttempt < maxConnectionRetries) {
+                    val retryDelay = (1000 * connectionAttempt).toLong()
+                    delay(retryDelay)
+                } else {
+                    Log.e(TAG, "All connection attempts failed")
+                    updateNotification("Cannot connect to device")
+                    delay(5000)
+                }
+            } catch (e: java.net.SocketTimeoutException) {
+                Log.w(TAG, "Connection timeout on attempt $connectionAttempt: ${e.message}")
+                updateNotification("Connection timeout (attempt $connectionAttempt/$maxConnectionRetries)")
+                
+                if (connectionAttempt < maxConnectionRetries) {
+                    delay(2000)
+                } else {
+                    Log.e(TAG, "All connection attempts timed out")
+                    updateNotification("Connection timeout - device unreachable")
+                    delay(5000)
+                }
+            } catch (e: IOException) {
+                Log.e(TAG, "IO error on connection attempt $connectionAttempt", e)
+                updateNotification("Network error during transfer")
+                
+                if (connectionAttempt < maxConnectionRetries) {
+                    delay(1500)
+                } else {
+                    updateNotification("Transfer failed: ${e.message}")
+                    delay(5000)
+                }
+            } finally {
+                try {
+                    socket.close()
+                } catch (e: Exception) {
+                    Log.w(TAG, "Error closing socket on attempt $connectionAttempt", e)
+                }
             }
         }
     }    private suspend fun sendFileWithProgress(
@@ -139,33 +185,143 @@ class FileSender : Service() {
             val buffer = ByteArray(Config.BUFFER_SIZE)
             var bytesTransferred = 0L
             var bytesRead: Int
+            val maxRetries = Config.MAX_RETRIES
+            var consecutiveFailures = 0
 
             while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                outputStream.write(buffer, 0, bytesRead)
-                bytesTransferred += bytesRead
+                var chunkSent = false
+                var retryCount = 0
+                
+                // Retry mechanism for each chunk
+                while (!chunkSent && retryCount < maxRetries) {
+                    try {
+                        // Check connection stability before writing
+                        if (!isConnectionStable(outputStream)) {
+                            Log.w(TAG, "Connection appears unstable, attempting to continue...")
+                        }
+                        
+                        // Write chunk with connection reset protection
+                        writeChunkWithRetry(outputStream, buffer, bytesRead)
+                        
+                        bytesTransferred += bytesRead
+                        chunkSent = true
+                        consecutiveFailures = 0
+                        
+                        // Update progress
+                        val progress = FileTransferProgress(
+                            fileName = metadata.fileName,
+                            bytesTransferred = bytesTransferred,
+                            totalBytes = metadata.fileSize
+                        )
 
-                // Update progress
-                val progress = FileTransferProgress(
-                    fileName = metadata.fileName,
-                    bytesTransferred = bytesTransferred,
-                    totalBytes = metadata.fileSize
-                )
+                        // Update notification with progress
+                        val percentageText = if (progress.percentage > 0) " (${progress.percentage}%)" else ""
+                        updateNotification("Sending ${metadata.fileName}$percentageText")
 
-                // Update notification with progress
-                val percentageText = if (progress.percentage > 0) " (${progress.percentage}%)" else ""
-                updateNotification("Sending ${metadata.fileName}$percentageText")
-
-                // Small delay to prevent excessive UI updates
-                if (bytesTransferred % (Config.BUFFER_SIZE * 10) == 0L) {
-                    delay(10)
+                        // Small delay to prevent excessive UI updates
+                        if (bytesTransferred % (Config.BUFFER_SIZE * 10) == 0L) {
+                            delay(10)
+                        }
+                          } catch (e: java.net.SocketException) {
+                        retryCount++
+                        consecutiveFailures++
+                        Log.w(TAG, "Connection reset during chunk transfer (attempt $retryCount/$maxRetries)", e)
+                          if (retryCount < maxRetries) {
+                            // Exponential backoff delay using config
+                            val delayMs = (Config.RETRY_DELAY_BASE * retryCount * retryCount).toLong()
+                            updateNotification("Connection lost, retrying in ${delayMs}ms...")
+                            delay(delayMs)
+                            
+                            // Attempt to reset the position for this chunk
+                            try {
+                                outputStream.flush()
+                            } catch (ignored: Exception) {
+                                // Ignore flush errors during retry
+                            }
+                        }
+                    } catch (e: IOException) {
+                        retryCount++
+                        consecutiveFailures++
+                        Log.w(TAG, "IO error during chunk transfer (attempt $retryCount/$maxRetries)", e)
+                          if (retryCount < maxRetries) {
+                            val delayMs = (Config.RETRY_DELAY_BASE * retryCount).toLong()
+                            updateNotification("Network error, retrying...")
+                            delay(delayMs)
+                        }
+                    }
+                }
+                
+                // If chunk failed after all retries, abort transfer
+                if (!chunkSent) {
+                    Log.e(TAG, "Failed to send chunk after $maxRetries attempts")
+                    updateNotification("Transfer failed after multiple retries")
+                    return@withContext false
+                }
+                
+                // If too many consecutive failures, abort even if individual chunks succeed
+                if (consecutiveFailures > 10) {
+                    Log.e(TAG, "Too many consecutive failures, aborting transfer")
+                    updateNotification("Transfer aborted due to unstable connection")
+                    return@withContext false
                 }
             }
 
-            outputStream.flush()
+            // Final flush with retry
+            var flushSuccess = false
+            for (attempt in 1..maxRetries) {
+                try {
+                    outputStream.flush()
+                    flushSuccess = true
+                    break
+                } catch (e: IOException) {
+                    Log.w(TAG, "Flush attempt $attempt failed", e)
+                    if (attempt < maxRetries) {
+                        delay(200)
+                    }
+                }
+            }
+            
+            if (!flushSuccess) {
+                Log.w(TAG, "Final flush failed, but transfer may still be successful")
+            }
+            
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Error during file transfer", e)
+            Log.e(TAG, "Fatal error during file transfer", e)
+            updateNotification("Transfer failed: ${e.message}")
             false
+        }
+    }
+    
+    /**
+     * Attempts to detect if the connection is stable by trying a small operation
+     */
+    private fun isConnectionStable(outputStream: java.io.OutputStream): Boolean {
+        return try {
+            // Try to flush - this will fail quickly if connection is broken
+            outputStream.flush()
+            true
+        } catch (e: IOException) {
+            Log.d(TAG, "Connection stability check failed", e)
+            false
+        }
+    }
+      /**
+     * Writes a chunk with immediate error detection
+     */
+    private fun writeChunkWithRetry(
+        outputStream: java.io.OutputStream, 
+        buffer: ByteArray, 
+        bytesToWrite: Int
+    ) {
+        try {
+            outputStream.write(buffer, 0, bytesToWrite)
+        } catch (e: java.net.SocketException) {
+            // Re-throw socket exceptions for retry logic
+            throw e
+        } catch (e: IOException) {
+            // Re-throw other IO exceptions
+            throw e
         }
     }
 
