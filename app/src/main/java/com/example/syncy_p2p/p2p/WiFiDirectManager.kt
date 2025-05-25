@@ -33,6 +33,7 @@ class WiFiDirectManager(private val context: Context) : EventReceiver.WiFiDirect
     private var channel: WifiP2pManager.Channel? = null
     private var eventReceiver: EventReceiver? = null
     private var messageReceiver: MessageReceiver? = null
+    private var fileReceiver: FileReceiver? = null
     private var callback: WiFiDirectCallback? = null
 
     // State flows for UI observation
@@ -90,6 +91,7 @@ class WiFiDirectManager(private val context: Context) : EventReceiver.WiFiDirect
     fun cleanup() {
         try {
             stopReceivingMessages()
+            stopReceivingFiles()
             eventReceiver?.let { context.unregisterReceiver(it) }
             eventReceiver = null
             channel = null
@@ -302,6 +304,42 @@ class WiFiDirectManager(private val context: Context) : EventReceiver.WiFiDirect
     fun stopReceivingMessages() {
         messageReceiver?.stop()
         messageReceiver = null
+    }
+
+    fun startReceivingFiles(): Result<Unit> {
+        return try {
+            if (fileReceiver?.isRunning == true) {
+                return Result.success(Unit)
+            }
+
+            fileReceiver = FileReceiver(
+                context = context,
+                destinationPath = context.getExternalFilesDir(null)?.absolutePath ?: context.filesDir.absolutePath,
+                onComplete = { filePath, metadata, senderAddress ->
+                    // Track the peer address when receiving files
+                    addConnectedPeer(senderAddress)
+                    callback?.onFileReceived(filePath, senderAddress)
+                },
+                onError = { error ->
+                    callback?.onError("File receive error: $error")
+                },
+                onProgress = { progress ->
+                    Log.d(TAG, "File transfer progress: ${progress.percentage}%")
+                }
+            )
+            fileReceiver?.start()
+            Log.d(TAG, "File receiver started for automatic two-way communication")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start file receiver", e)
+            Result.failure(e)
+        }
+    }
+
+    fun stopReceivingFiles() {
+        fileReceiver?.stop()
+        fileReceiver = null
+        Log.d(TAG, "File receiver stopped")
     }    fun receiveFile(destinationDir: String, fileName: String): Result<Unit> {        return try {
             val fileReceiver = FileReceiver(
                 context = context,
@@ -373,19 +411,21 @@ class WiFiDirectManager(private val context: Context) : EventReceiver.WiFiDirect
         val devices = deviceList.deviceList.map { DeviceInfo.fromWifiP2pDevice(it) }
         _peers.value = devices
         Log.d(TAG, "Peers updated: ${devices.size} devices")
-    }
-
-    override fun onConnectionInfoChanged(info: WifiP2pInfo) {
+    }    override fun onConnectionInfoChanged(info: WifiP2pInfo) {
         val connectionInfo = ConnectionInfo.fromWifiP2pInfo(info)
         _connectionInfo.value = connectionInfo
         Log.d(TAG, "Connection info updated: $connectionInfo")
         
         if (info.groupFormed) {
             callback?.onStatusChanged("Connected to group")
+            // Start both message and file receivers for full two-way communication
             startReceivingMessages()
+            startReceivingFiles()
         } else {
             callback?.onStatusChanged("Disconnected from group")
+            // Stop both message and file receivers
             stopReceivingMessages()
+            stopReceivingFiles()
         }
     }
 
