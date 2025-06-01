@@ -720,35 +720,54 @@ class SyncManager(
         } catch (e: Exception) {
             Log.e(TAG, "Failed to handle sync progress", e)
         }
-    }
-
-    private fun parseSyncRequest(json: String): SyncRequest? {
-        // Simple JSON parsing - in production you'd use a proper JSON library
-        return try {
-            // Basic parsing implementation - replace with proper JSON library
+    }    private fun parseSyncRequest(json: String): SyncRequest? {
+        return try {            Log.d(TAG, "Parsing sync request JSON: $json")
+            
+            // Simple JSON parsing - extract values manually using Utils.extractJsonValue
+            val requestId = Utils.extractJsonValue(json, "requestId") ?: UUID.randomUUID().toString()
+            val sourceDeviceId = Utils.extractJsonValue(json, "sourceDeviceId") ?: "unknown"
+            val sourceDeviceName = Utils.extractJsonValue(json, "sourceDeviceName") ?: "Unknown Device"
+            val folderName = Utils.extractJsonValue(json, "folderName") ?: "Sync Folder"
+            val folderPath = Utils.extractJsonValue(json, "folderPath") ?: "/unknown"
+            val totalFiles = Utils.extractJsonValue(json, "totalFiles")?.toIntOrNull() ?: 0
+            val totalSize = Utils.extractJsonValue(json, "totalSize")?.toLongOrNull() ?: 0L
+            val timestamp = Utils.extractJsonValue(json, "timestamp")?.toLongOrNull() ?: System.currentTimeMillis()
+            
             SyncRequest(
-                requestId = UUID.randomUUID().toString(),
-                sourceDeviceId = "unknown",
-                sourceDeviceName = "Unknown Device",
-                folderName = "Sync Folder",
-                folderPath = "/unknown",
-                totalFiles = 0,
-                totalSize = 0L
+                requestId = requestId,
+                sourceDeviceId = sourceDeviceId,
+                sourceDeviceName = sourceDeviceName,
+                folderName = folderName,
+                folderPath = folderPath,
+                totalFiles = totalFiles,
+                totalSize = totalSize,
+                timestamp = timestamp
             )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to parse sync request", e)
             null
         }
     }    private fun parseSyncProgress(json: String): SyncProgress? {
-        // Simple JSON parsing - in production you'd use a proper JSON library
         return try {
+            Log.d(TAG, "Parsing sync progress JSON: $json")
+            
+            // Simple JSON parsing - extract values manually using Utils.extractJsonValue
+            val folderName = Utils.extractJsonValue(json, "folderName") ?: ""
+            val currentFile = Utils.extractJsonValue(json, "currentFile") ?: ""
+            val filesProcessed = Utils.extractJsonValue(json, "filesProcessed")?.toIntOrNull() ?: 0
+            val totalFiles = Utils.extractJsonValue(json, "totalFiles")?.toIntOrNull() ?: 0
+            val bytesTransferred = Utils.extractJsonValue(json, "bytesTransferred")?.toLongOrNull() ?: 0L
+            val totalBytes = Utils.extractJsonValue(json, "totalBytes")?.toLongOrNull() ?: 0L
+            val status = Utils.extractJsonValue(json, "status") ?: ""
+            
             SyncProgress(
-                folderName = "",
-                currentFile = "",
-                filesProcessed = 0,
-                totalFiles = 0,
-                bytesTransferred = 0L,
-                totalBytes = 0L
+                folderName = folderName,
+                currentFile = currentFile,
+                filesProcessed = filesProcessed,
+                totalFiles = totalFiles,
+                bytesTransferred = bytesTransferred,
+                totalBytes = totalBytes,
+                status = status
             )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to parse sync progress", e)
@@ -773,11 +792,29 @@ class SyncManager(
             context.contentResolver,
             android.provider.Settings.Secure.ANDROID_ID
         )
-    }
-
-    private fun getCurrentDeviceName(): String {
+    }    private fun getCurrentDeviceName(): String {
         // Get current device name
         return android.os.Build.MODEL
+    }
+    
+    private fun getConnectedDeviceId(): String? {
+        // Get the connected device ID from WiFiDirectManager
+        // If we're the group owner, get the first connected peer
+        // If we're a client, get the group owner
+        val connectionInfo = wifiDirectManager.connectionInfo.value
+        val connectedPeers = wifiDirectManager.connectedPeers.value
+        
+        return if (connectionInfo?.groupFormed == true) {
+            if (connectionInfo.isGroupOwner) {
+                // We're group owner, get first connected peer
+                connectedPeers.firstOrNull()
+            } else {
+                // We're client, use group owner address
+                connectionInfo.groupOwnerAddress
+            }
+        } else {
+            null
+        }
     }
 
     private suspend fun createLocalFolderForSync(folderName: String): Uri? {
@@ -1137,9 +1174,7 @@ class SyncManager(
             Log.e(TAG, "Error resolving conflict", e)
             Result.failure(e)
         }
-    }
-
-    /**
+    }    /**
      * Initiate folder sync (compatible method for UI)
      */
     suspend fun initiateFolderSync(folderPath: String, remoteDeviceName: String): Boolean {
@@ -1152,18 +1187,51 @@ class SyncManager(
                 startSync(existingFolder.id)
                 true
             } else {
-                // Create new sync request (this would normally require user interaction on remote)
-                addSyncLog(
+                // Create new sync request and send to connected device
+                val targetDeviceId = getConnectedDeviceId()
+                if (targetDeviceId == null) {
+                    addSyncLog(
+                        folderName = folderPath.substringAfterLast("/"),
+                        action = "SYNC_FAILED",
+                        message = "No connected device found to send sync request",
+                        status = SyncLogStatus.ERROR,
+                        deviceName = remoteDeviceName
+                    )
+                    return false
+                }
+                
+                // Convert file path to URI if needed
+                val folderUri = fileManager.selectedFolderUri
+                if (folderUri == null) {
+                    addSyncLog(
+                        folderName = folderPath.substringAfterLast("/"),
+                        action = "SYNC_FAILED",
+                        message = "Invalid folder URI for sync request",
+                        status = SyncLogStatus.ERROR,
+                        deviceName = remoteDeviceName
+                    )
+                    return false
+                }
+                
+                // Send actual sync request
+                val result = requestFolderSync(
+                    folderUri = folderUri,
                     folderName = folderPath.substringAfterLast("/"),
-                    action = "SYNC_INITIATED",
-                    message = "Sync initiation requested for folder: $folderPath",
-                    status = SyncLogStatus.INFO,
-                    deviceName = remoteDeviceName
+                    targetDeviceId = targetDeviceId,
+                    targetDeviceName = remoteDeviceName
                 )
-                false // Would need remote device acceptance
+                
+                result.isSuccess
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error initiating folder sync", e)
+            addSyncLog(
+                folderName = folderPath.substringAfterLast("/"),
+                action = "SYNC_ERROR",
+                message = "Error initiating sync: ${e.message}",
+                status = SyncLogStatus.ERROR,
+                deviceName = remoteDeviceName
+            )
             false
         }
     }

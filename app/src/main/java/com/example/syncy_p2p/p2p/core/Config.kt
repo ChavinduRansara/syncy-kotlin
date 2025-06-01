@@ -7,7 +7,9 @@ object Config {
     var channelName: String = "Syncy P2P Messages"
     var fileChannelName: String = "Syncy P2P Files"
     
-    const val DEFAULT_PORT = 8988
+    const val DEFAULT_PORT = 8988           // For backward compatibility
+    const val MESSAGE_PORT = 8988           // Dedicated port for messages
+    const val FILE_PORT = 8989              // Dedicated port for files
     const val SOCKET_TIMEOUT = 30000        // Increased to 30 seconds for file transfers
     const val SOCKET_READ_TIMEOUT = 60000   // 60 seconds for reading data during transfer
     const val BUFFER_SIZE = 8192

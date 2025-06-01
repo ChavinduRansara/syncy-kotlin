@@ -133,9 +133,7 @@ object Utils {
             Log.e(TAG, "Error receiving metadata", e)
             null
         }
-    }
-
-    private fun extractJsonValue(json: String, key: String): String? {
+    }    fun extractJsonValue(json: String, key: String): String? {
         val pattern = "\"$key\":\\s*\"([^\"]*)\"|\"$key\":\\s*([^,}\\s]*)"
         val regex = Regex(pattern)
         val matchResult = regex.find(json)

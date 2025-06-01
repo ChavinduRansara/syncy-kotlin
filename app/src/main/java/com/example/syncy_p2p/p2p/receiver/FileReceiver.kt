@@ -34,13 +34,12 @@ class FileReceiver(
         }
 
         receiverJob = CoroutineScope(Dispatchers.IO).launch {
-            try {
-                isRunning = true
-                serverSocket = ServerSocket(Config.DEFAULT_PORT).apply {
+            try {                isRunning = true
+                serverSocket = ServerSocket(Config.FILE_PORT).apply {
                     soTimeout = 0  // No timeout for accept() - wait indefinitely
                     reuseAddress = true
                 }
-                Log.d(TAG, "FileReceiver started on port ${Config.DEFAULT_PORT}")
+                Log.d(TAG, "FileReceiver started on port ${Config.FILE_PORT}")
 
                 val clientSocket = serverSocket?.accept()
                 if (clientSocket != null && isRunning) {

@@ -641,10 +641,15 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
         runOnUiThread {
             Toast.makeText(this, "File received from $senderAddress: $filePath", Toast.LENGTH_LONG).show()
         }
-    }
-
-    override fun onSyncRequestReceived(requestJson: String, senderAddress: String) {
-        Log.d(TAG, "Sync request received from $senderAddress")
+    }    override fun onSyncRequestReceived(requestJson: String, senderAddress: String) {
+        Log.d(TAG, "🚨 SYNC REQUEST RECEIVED IN MAINACTIVITY 🚨")
+        Log.d(TAG, "From: $senderAddress")
+        Log.d(TAG, "Request JSON: $requestJson")
+        
+        runOnUiThread {
+            Toast.makeText(this, "🔄 Sync request received from $senderAddress", Toast.LENGTH_LONG).show()
+        }
+        
         syncManager.handleSyncRequest(requestJson, senderAddress)
     }
 

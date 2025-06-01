@@ -247,12 +247,11 @@ class WiFiDirectManager(private val context: Context) : EventReceiver.WiFiDirect
         }
 
         Log.d(TAG, "Sending message to: $address")
-        return try {
-            val intent = Intent(context, MessageSender::class.java).apply {
+        return try {            val intent = Intent(context, MessageSender::class.java).apply {
                 action = MessageSender.ACTION_SEND_MESSAGE
                 putExtra(MessageSender.EXTRAS_DATA, message)
                 putExtra(MessageSender.EXTRAS_ADDRESS, address)
-                putExtra(MessageSender.EXTRAS_PORT, Config.DEFAULT_PORT)
+                putExtra(MessageSender.EXTRAS_PORT, Config.MESSAGE_PORT)
             }
 
             context.startForegroundService(intent)
@@ -268,12 +267,11 @@ class WiFiDirectManager(private val context: Context) : EventReceiver.WiFiDirect
         }
 
         Log.d(TAG, "Sending file to: $address")
-        return try {
-            val intent = Intent(context, FileSender::class.java).apply {
+        return try {            val intent = Intent(context, FileSender::class.java).apply {
                 action = FileSender.ACTION_SEND_FILE
                 putExtra(FileSender.EXTRAS_FILE_PATH, filePath)
                 putExtra(FileSender.EXTRAS_ADDRESS, address)
-                putExtra(FileSender.EXTRAS_PORT, Config.DEFAULT_PORT)
+                putExtra(FileSender.EXTRAS_PORT, Config.FILE_PORT)
             }
 
             context.startForegroundService(intent)
@@ -287,28 +285,39 @@ class WiFiDirectManager(private val context: Context) : EventReceiver.WiFiDirect
             if (messageReceiver?.isRunning == true) {
                 return Result.success(Unit)
             }
+            
             messageReceiver = MessageReceiver { message, senderAddress ->
                 // Track the peer address when receiving messages
                 addConnectedPeer(senderAddress)
+                
+                Log.d(TAG, "=== PROCESSING RECEIVED MESSAGE ===")
+                Log.d(TAG, "From: $senderAddress")
+                Log.d(TAG, "Message: '$message'")
+                Log.d(TAG, "Processing sync-specific messages...")
                 
                 // Handle sync-specific messages
                 when {
                     message.startsWith("SYNC_REQUEST:") -> {
                         val requestJson = message.removePrefix("SYNC_REQUEST:")
+                        Log.d(TAG, "🔄 SYNC REQUEST DETECTED: $requestJson")
                         callback?.onSyncRequestReceived(requestJson, senderAddress)
                     }
                     message.startsWith("SYNC_ACCEPTED:") || message.startsWith("SYNC_REJECTED:") -> {
+                        Log.d(TAG, "✅ SYNC RESPONSE DETECTED: $message")
                         callback?.onSyncResponseReceived(message, senderAddress)
                     }
                     message.startsWith("SYNC_PROGRESS:") -> {
                         val progressJson = message.removePrefix("SYNC_PROGRESS:")
+                        Log.d(TAG, "📊 SYNC PROGRESS DETECTED: $progressJson")
                         callback?.onSyncProgressReceived(progressJson, senderAddress)
                     }
                     else -> {
+                        Log.d(TAG, "💬 REGULAR MESSAGE DETECTED")
                         // Regular message
                         callback?.onMessageReceived(message, senderAddress)
                     }
                 }
+                Log.d(TAG, "=================================")
             }
             messageReceiver?.start()
             Result.success(Unit)

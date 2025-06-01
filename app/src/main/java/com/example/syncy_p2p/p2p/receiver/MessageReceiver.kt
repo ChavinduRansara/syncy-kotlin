@@ -15,9 +15,7 @@ class MessageReceiver(
 ) {
     companion object {
         private const val TAG = "SyncyP2P"
-    }
-
-    private var serverSocket: ServerSocket? = null
+    }    private var serverSocket: ServerSocket? = null
     private var receiverJob: Job? = null
     var isRunning = false
         private set
@@ -28,16 +26,20 @@ class MessageReceiver(
             return
         }
 
-        receiverJob = CoroutineScope(Dispatchers.IO).launch {
+        Log.d(TAG, "🚀 STARTING MESSAGE RECEIVER ON PORT ${Config.MESSAGE_PORT}")
+          receiverJob = CoroutineScope(Dispatchers.IO).launch {
             try {
                 isRunning = true
-                serverSocket = ServerSocket(Config.DEFAULT_PORT)
-                Log.d(TAG, "MessageReceiver started on port ${Config.DEFAULT_PORT}")
+                serverSocket = ServerSocket(Config.MESSAGE_PORT)
+                Log.d(TAG, "✅ MessageReceiver started successfully on port ${Config.MESSAGE_PORT}")
+                Log.d(TAG, "📡 Waiting for incoming connections...")
 
                 while (isRunning && !Thread.currentThread().isInterrupted()) {
                     try {
+                        Log.d(TAG, "⏳ Accepting new client connections...")
                         val clientSocket = serverSocket?.accept()
                         if (clientSocket != null && isRunning) {
+                            Log.d(TAG, "🔗 New client connected: ${clientSocket.inetAddress.hostAddress}")
                             launch { handleClient(clientSocket) }
                         }
                     } catch (e: IOException) {
@@ -64,15 +66,18 @@ class MessageReceiver(
         } catch (e: Exception) {
             Log.w(TAG, "Error stopping MessageReceiver", e)
         }
-    }
-
-    private suspend fun handleClient(clientSocket: Socket) {
+    }    private suspend fun handleClient(clientSocket: Socket) {
         withContext(Dispatchers.IO) {
             try {
                 clientSocket.use { socket ->
                     val message = readMessage(socket)
                     val senderAddress = socket.inetAddress.hostAddress ?: "unknown"
-                    Log.d(TAG, "Received message from $senderAddress: $message")
+                    Log.d(TAG, "=== MESSAGE RECEIVED ===")
+                    Log.d(TAG, "From: $senderAddress")
+                    Log.d(TAG, "Message: '$message'")
+                    Log.d(TAG, "Message length: ${message.length}")
+                    Log.d(TAG, "Is SYNC_REQUEST: ${message.startsWith("SYNC_REQUEST:")}")
+                    Log.d(TAG, "========================")
                     
                     withContext(Dispatchers.Main) {
                         onMessageReceived(message, senderAddress)
