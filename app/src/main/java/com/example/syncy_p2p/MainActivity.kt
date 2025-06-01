@@ -19,6 +19,10 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.syncy_p2p.databinding.ActivityMainBinding
 import com.example.syncy_p2p.p2p.WiFiDirectManager
+import com.example.syncy_p2p.ui.SyncManagementActivity
+import com.example.syncy_p2p.ui.ConflictResolutionDialog
+import com.example.syncy_p2p.sync.FileConflict
+import com.example.syncy_p2p.sync.ConflictResolution
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.example.syncy_p2p.p2p.core.DeviceInfo
@@ -27,7 +31,7 @@ import com.example.syncy_p2p.files.FileManager
 import com.example.syncy_p2p.files.FileAdapter
 import com.example.syncy_p2p.files.FileItem
 import com.example.syncy_p2p.files.FileTransferProgress
-import kotlinx.coroutines.launch
+import com.example.syncy_p2p.sync.SyncManager
 import java.io.File
 
 class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
@@ -35,11 +39,14 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
     companion object {
         private const val TAG = "SyncyP2P"
         private const val PERMISSION_REQUEST_CODE = 100
-    }    private lateinit var binding: ActivityMainBinding
+    }
+    
+    private lateinit var binding: ActivityMainBinding
     private lateinit var wifiDirectManager: WiFiDirectManager
     private lateinit var peerAdapter: PeerAdapter
     private lateinit var fileManager: FileManager
     private lateinit var fileAdapter: FileAdapter
+    private lateinit var syncManager: SyncManager
 
     private val requiredPermissions = mutableListOf<String>().apply {
         add(Manifest.permission.ACCESS_WIFI_STATE)
@@ -75,17 +82,19 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.data?.let { uri ->
                 handleSelectedFolder(uri)
-            }        }
+            }
+        }
     }
-
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-
+        
         setupUI()
         setupFileManager()
         setupWiFiDirect()
+        setupSyncManager()
         checkPermissions()
     }
 
@@ -118,35 +127,41 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
         binding.rvFiles.apply {
             layoutManager = LinearLayoutManager(this@MainActivity)
             adapter = fileAdapter
-        }
-
-        // Setup button listeners
+        }        // Setup button listeners
         binding.btnInit.setOnClickListener {
             initializeWiFiDirect()
         }
-
+        
         binding.btnDiscover.setOnClickListener {
             discoverPeers()
         }
-
+        
         binding.btnCreateGroup.setOnClickListener {
             createGroup()
         }
-
+        
         binding.btnDisconnect.setOnClickListener {
             disconnect()
         }
-
+        
         binding.btnSendMessage.setOnClickListener {
             sendMessage()
         }
-
+        
         binding.btnSendFile.setOnClickListener {
             selectFile()
         }
-
+        
         binding.btnSelectFolder.setOnClickListener {
             selectFolder()
+        }
+
+        binding.btnSyncFolder.setOnClickListener {
+            initiateSync()
+        }
+
+        binding.btnSyncManagement.setOnClickListener {
+            openSyncManagement()
         }
     }
 
@@ -177,8 +192,7 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
             wifiDirectManager.connectionInfo.collect { connectionInfo ->
                 val isConnected = connectionInfo?.groupFormed == true
                 updateConnectionButtons(isConnected)
-            }
-        }
+            }        }
 
         lifecycleScope.launch {
             wifiDirectManager.thisDevice.collect { deviceInfo ->
@@ -187,13 +201,102 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
                 }
             }
         }
-
+        
         lifecycleScope.launch {
             wifiDirectManager.isInitialized.collect { initialized ->
                 binding.btnInit.isEnabled = !initialized
                 binding.btnDiscover.isEnabled = initialized
                 binding.btnCreateGroup.isEnabled = initialized
             }
+        }
+    }
+
+    private fun setupSyncManager() {
+        syncManager = SyncManager(this, fileManager, wifiDirectManager)
+        
+        // Observe sync state changes
+        lifecycleScope.launch {
+            syncManager.syncRequests.collect { requests ->
+                // Handle incoming sync requests - show notification to user
+                requests.forEach { request ->
+                    if (request.status == com.example.syncy_p2p.sync.SyncRequestStatus.PENDING) {
+                        showSyncRequestDialog(request)
+                    }
+                }
+            }
+        }
+        
+        lifecycleScope.launch {
+            syncManager.syncedFolders.collect { folders ->
+                // Update UI with synced folders
+                updateSyncedFoldersDisplay(folders)
+            }
+        }
+        
+        lifecycleScope.launch {
+            syncManager.currentProgress.collect { progress ->
+                // Update sync progress in UI
+                updateSyncProgress(progress)
+            }
+        }
+        
+        lifecycleScope.launch {
+            syncManager.syncLogs.collect { logs ->
+                // Update sync logs in UI
+                updateSyncLogs(logs)
+            }
+        }
+    }
+
+    private fun showSyncRequestDialog(request: com.example.syncy_p2p.sync.SyncRequest) {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Sync Request")
+            .setMessage("${request.sourceDeviceName} wants to sync folder '${request.folderName}' (${request.totalFiles} files, ${formatFileSize(request.totalSize)})")
+            .setPositiveButton("Accept") { _, _ ->
+                lifecycleScope.launch {
+                    syncManager.acceptSyncRequest(request.requestId)
+                }
+            }
+            .setNegativeButton("Reject") { _, _ ->
+                lifecycleScope.launch {
+                    syncManager.rejectSyncRequest(request.requestId)
+                }
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun updateSyncedFoldersDisplay(folders: List<com.example.syncy_p2p.sync.SyncedFolder>) {
+        // Update UI to show synced folders - could add to a separate RecyclerView
+        Log.d(TAG, "Synced folders updated: ${folders.size}")
+    }
+
+    private fun updateSyncProgress(progress: com.example.syncy_p2p.sync.SyncProgress?) {
+        if (progress != null) {
+            runOnUiThread {
+                val percentage = if (progress.totalFiles > 0) {
+                    (progress.filesProcessed * 100) / progress.totalFiles
+                } else 0
+                binding.tvStatus.text = "Syncing: ${progress.currentFile} ($percentage%)"
+            }
+        }
+    }
+
+    private fun updateSyncLogs(logs: List<com.example.syncy_p2p.sync.SyncLogEntry>) {
+        // Update sync logs in UI - could show in a dialog or separate section
+        Log.d(TAG, "Sync logs updated: ${logs.size} entries")
+    }
+
+    private fun formatFileSize(bytes: Long): String {
+        val kb = bytes / 1024.0
+        val mb = kb / 1024.0
+        val gb = mb / 1024.0
+        
+        return when {
+            gb >= 1 -> String.format("%.1f GB", gb)
+            mb >= 1 -> String.format("%.1f MB", mb)
+            kb >= 1 -> String.format("%.1f KB", kb)
+            else -> "$bytes B"
         }
     }
 
@@ -325,13 +428,15 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
     private fun selectFolder() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
         folderPickerLauncher.launch(intent)
-    }
-
-    private fun handleSelectedFolder(uri: Uri) {
+    }    private fun handleSelectedFolder(uri: Uri) {
         try {
             fileManager.setSelectedFolder(uri)
             updateFolderDisplay()
             loadFilesFromSelectedFolder()
+            
+            // Update sync button state
+            val isConnected = wifiDirectManager.connectionInfo.value?.groupFormed == true
+            binding.btnSyncFolder.isEnabled = isConnected && fileManager.hasSelectedFolder()
             
             val folderPath = fileManager.selectedFolderPath ?: "Unknown"
             Toast.makeText(this, getString(R.string.folder_selected, folderPath), Toast.LENGTH_SHORT).show()
@@ -463,12 +568,63 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
             Log.e(TAG, "Error copying file", e)
             null
         }
-    }
-
-    private fun updateConnectionButtons(isConnected: Boolean) {
+    }    private fun updateConnectionButtons(isConnected: Boolean) {
         binding.btnSendMessage.isEnabled = isConnected
         binding.btnSendFile.isEnabled = isConnected
         binding.btnDisconnect.isEnabled = isConnected
+        binding.btnSyncFolder.isEnabled = isConnected && fileManager.hasSelectedFolder()
+    }
+
+    private fun initiateSync() {
+        if (!fileManager.hasSelectedFolder()) {
+            Toast.makeText(this, "Please select a folder first", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        val folderPath = fileManager.selectedFolderPath ?: return
+        
+        lifecycleScope.launch {
+            try {
+                val success = syncManager.initiateFolderSync(folderPath, "Remote Device")
+                if (success) {
+                    Toast.makeText(this@MainActivity, "Sync request sent", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this@MainActivity, "Failed to send sync request", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                onError("Error initiating sync: ${e.message}")
+            }
+        }
+    }
+
+    private fun openSyncManagement() {
+        val intent = Intent(this, SyncManagementActivity::class.java)
+        // Pass the sync manager instance - this would need proper implementation
+        // intent.putExtra(SyncManagementActivity.EXTRA_SYNC_MANAGER, syncManager)
+        startActivity(intent)
+    }
+
+    private fun handleFileConflict(conflict: FileConflict) {
+        runOnUiThread {
+            ConflictResolutionDialog.show(this, conflict) { resolution ->
+                lifecycleScope.launch {
+                    try {
+                        syncManager.resolveConflict(conflict, resolution)
+                        val resolutionText = when (resolution) {
+                            ConflictResolution.OVERWRITE_LOCAL -> "kept remote file"
+                            ConflictResolution.OVERWRITE_REMOTE -> "kept local file"
+                            ConflictResolution.KEEP_BOTH -> "kept both files"
+                            ConflictResolution.KEEP_NEWER -> "kept newer file"
+                            ConflictResolution.KEEP_LARGER -> "kept larger file"
+                            ConflictResolution.ASK_USER -> "user choice required"
+                        }
+                        Toast.makeText(this@MainActivity, "Conflict resolved: $resolutionText", Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        onError("Error resolving conflict: ${e.message}")
+                    }
+                }
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -481,12 +637,25 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
         runOnUiThread {
             Toast.makeText(this, "Message from $senderAddress: $message", Toast.LENGTH_LONG).show()
         }
-    }
-
-    override fun onFileReceived(filePath: String, senderAddress: String) {
+    }    override fun onFileReceived(filePath: String, senderAddress: String) {
         runOnUiThread {
             Toast.makeText(this, "File received from $senderAddress: $filePath", Toast.LENGTH_LONG).show()
         }
+    }
+
+    override fun onSyncRequestReceived(requestJson: String, senderAddress: String) {
+        Log.d(TAG, "Sync request received from $senderAddress")
+        syncManager.handleSyncRequest(requestJson, senderAddress)
+    }
+
+    override fun onSyncResponseReceived(response: String, senderAddress: String) {
+        Log.d(TAG, "Sync response received from $senderAddress: $response")
+        syncManager.handleSyncResponse(response, senderAddress)
+    }
+
+    override fun onSyncProgressReceived(progressJson: String, senderAddress: String) {
+        Log.d(TAG, "Sync progress received from $senderAddress")
+        syncManager.handleSyncProgress(progressJson, senderAddress)
     }
 
     override fun onError(error: String) {

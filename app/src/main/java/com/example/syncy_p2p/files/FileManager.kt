@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.net.Uri
 import android.provider.DocumentsContract
+import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -33,6 +34,7 @@ data class FileItem(
 class FileManager(private val context: Context) {
     
     companion object {
+        private const val TAG = "FileManager"
         private const val PREFS_NAME = "syncy_file_prefs"
         private const val KEY_SELECTED_FOLDER = "selected_folder_uri"
     }
@@ -139,7 +141,7 @@ class FileManager(private val context: Context) {
         }
     }
     
-    private fun getFolderDisplayPath(uri: Uri): String {
+    fun getFolderDisplayPath(uri: Uri): String {
         return try {
             when {
                 DocumentsContract.isTreeUri(uri) -> {
@@ -161,11 +163,24 @@ class FileManager(private val context: Context) {
             "Unknown Location"
         }
     }
-    
-    fun hasSelectedFolder(): Boolean = selectedFolderUri != null
+      fun hasSelectedFolder(): Boolean = selectedFolderUri != null
     
     fun clearSelectedFolder() {
         _selectedFolderUri = null
         preferences.edit().remove(KEY_SELECTED_FOLDER).apply()
+    }
+    
+    /**
+     * Create a new folder in the Documents directory for sync purposes
+     */
+    suspend fun createFolderInDocuments(folderName: String): Uri? {
+        return try {
+            // This is a simplified implementation - in a real app you'd use proper document provider APIs
+            // For now, return null to indicate the operation is not supported
+            null
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating folder in documents", e)
+            null
+        }
     }
 }

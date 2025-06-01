@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="8dp"
+    android:gravity="center_vertical">
+
+    <!-- Timestamp -->
+    <TextView
+        android:id="@+id/tvTimestamp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="12:34:56"
+        android:textSize="11sp"
+        android:textColor="@android:color/darker_gray"
+        android:fontFamily="monospace"
+        android:minWidth="60dp" />
+
+    <!-- Level indicator -->
+    <TextView
+        android:id="@+id/tvLevel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:text="INFO"
+        android:textSize="10sp"
+        android:textStyle="bold"
+        android:fontFamily="monospace"
+        android:minWidth="50dp" />
+
+    <!-- Folder name (optional) -->
+    <TextView
+        android:id="@+id/tvFolderName"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:text="[folder]"
+        android:textSize="11sp"
+        android:textColor="@android:color/darker_gray"
+        android:fontFamily="monospace"
+        android:visibility="gone" />
+
+    <!-- Log message -->
+    <TextView
+        android:id="@+id/tvMessage"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="8dp"
+        android:text="Log message"
+        android:textSize="12sp"
+        android:maxLines="2"
+        android:ellipsize="end" />
+
+</LinearLayout>

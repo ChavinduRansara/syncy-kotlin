@@ -84,9 +84,7 @@
             android:layout_weight="1"
             android:layout_marginEnd="8dp"
             android:text="Create Group"
-            android:enabled="false" />
-
-        <Button
+            android:enabled="false" />        <Button
             android:id="@+id/btnDisconnect"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -95,7 +93,18 @@
             android:text="Disconnect"
             android:enabled="false" />
 
-    </LinearLayout>    <!-- Available Peers -->
+    </LinearLayout>
+
+    <!-- Sync Management Button -->
+    <Button
+        android:id="@+id/btnSyncManagement"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:text="Sync Management"
+        android:drawableStart="@android:drawable/ic_menu_manage"
+        android:drawablePadding="8dp"
+        style="@style/Widget.Material3.Button.OutlinedButton" /><!-- Available Peers -->
     <androidx.cardview.widget.CardView
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -154,14 +163,22 @@
                     android:layout_weight="1"
                     android:text="File Browser"
                     android:textSize="18sp"
-                    android:textStyle="bold" />
-
-                <Button
+                    android:textStyle="bold" />                <Button
                     android:id="@+id/btnSelectFolder"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
                     android:text="Select Folder"
                     android:textSize="12sp"
+                    style="@style/Widget.Material3.Button.OutlinedButton" />
+
+                <Button
+                    android:id="@+id/btnSyncFolder"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Sync Folder"
+                    android:textSize="12sp"
+                    android:enabled="false"
                     style="@style/Widget.Material3.Button.OutlinedButton" />
 
             </LinearLayout>

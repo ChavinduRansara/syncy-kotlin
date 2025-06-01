@@ -20,11 +20,12 @@ class WiFiDirectManager(private val context: Context) : EventReceiver.WiFiDirect
 
     companion object {
         private const val TAG = "SyncyP2P"
-    }
-
-    interface WiFiDirectCallback {
+    }    interface WiFiDirectCallback {
         fun onMessageReceived(message: String, senderAddress: String)
         fun onFileReceived(filePath: String, senderAddress: String)
+        fun onSyncRequestReceived(requestJson: String, senderAddress: String)
+        fun onSyncResponseReceived(response: String, senderAddress: String)
+        fun onSyncProgressReceived(progressJson: String, senderAddress: String)
         fun onError(error: String)
         fun onStatusChanged(status: String)
     }
@@ -281,17 +282,33 @@ class WiFiDirectManager(private val context: Context) : EventReceiver.WiFiDirect
             Log.e(TAG, "Failed to send file", e)
             Result.failure(e)
         }
-    }
-
-    fun startReceivingMessages(): Result<Unit> {
-        return try {            if (messageReceiver?.isRunning == true) {
+    }    fun startReceivingMessages(): Result<Unit> {
+        return try {
+            if (messageReceiver?.isRunning == true) {
                 return Result.success(Unit)
             }
-
             messageReceiver = MessageReceiver { message, senderAddress ->
                 // Track the peer address when receiving messages
                 addConnectedPeer(senderAddress)
-                callback?.onMessageReceived(message, senderAddress)
+                
+                // Handle sync-specific messages
+                when {
+                    message.startsWith("SYNC_REQUEST:") -> {
+                        val requestJson = message.removePrefix("SYNC_REQUEST:")
+                        callback?.onSyncRequestReceived(requestJson, senderAddress)
+                    }
+                    message.startsWith("SYNC_ACCEPTED:") || message.startsWith("SYNC_REJECTED:") -> {
+                        callback?.onSyncResponseReceived(message, senderAddress)
+                    }
+                    message.startsWith("SYNC_PROGRESS:") -> {
+                        val progressJson = message.removePrefix("SYNC_PROGRESS:")
+                        callback?.onSyncProgressReceived(progressJson, senderAddress)
+                    }
+                    else -> {
+                        // Regular message
+                        callback?.onMessageReceived(message, senderAddress)
+                    }
+                }
             }
             messageReceiver?.start()
             Result.success(Unit)

@@ -43,15 +43,23 @@
             android:name=".p2p.sender.MessageSender" 
             android:exported="false" 
             android:enabled="true"
-            android:foregroundServiceType="dataSync" />
-
-        <activity
+            android:foregroundServiceType="dataSync" />        <activity
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".ui.SyncManagementActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Syncyp2p"
+            android:parentActivityName=".MainActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".MainActivity" />
         </activity>
 
     </application>
