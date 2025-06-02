@@ -7,6 +7,7 @@ import android.provider.DocumentsContract
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -69,18 +70,37 @@ class FileManager(private val context: Context) {
             // Permission might already be taken or not available
         }
     }
-    
-    suspend fun getFilesInFolder(folderUri: Uri? = selectedFolderUri): List<FileItem> = withContext(Dispatchers.IO) {
-        if (folderUri == null) return@withContext emptyList()
+      suspend fun getFilesInFolder(folderUri: Uri? = selectedFolderUri): List<FileItem> = withContext(Dispatchers.IO) {
+        if (folderUri == null) {
+            Log.w(TAG, "getFilesInFolder: No folder URI provided")
+            return@withContext emptyList()
+        }
         
         try {
+            Log.d(TAG, "🔄 GET FILES - Getting files from folder: $folderUri")
+            
+            // Ensure we have persistent permissions
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    folderUri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not take persistent permissions (may already exist): ${e.message}")
+            }
+            
             val documentFile = DocumentFile.fromTreeUri(context, folderUri)
             if (documentFile == null || !documentFile.exists() || !documentFile.isDirectory) {
+                Log.w(TAG, "🔄 GET FILES - Document file invalid: exists=${documentFile?.exists()}, isDir=${documentFile?.isDirectory}")
                 return@withContext emptyList()
             }
             
             val files = mutableListOf<FileItem>()
-            documentFile.listFiles().forEach { file ->
+            val childFiles = documentFile.listFiles()
+            Log.d(TAG, "🔄 GET FILES - Found ${childFiles.size} child files")
+            
+            childFiles.forEach { file ->
                 try {
                     val fileItem = FileItem(
                         name = file.name ?: "Unknown",
@@ -91,14 +111,18 @@ class FileManager(private val context: Context) {
                         mimeType = file.type
                     )
                     files.add(fileItem)
+                    Log.v(TAG, "🔄 GET FILES - Added file: ${fileItem.name} (${fileItem.size} bytes)")
                 } catch (e: Exception) {
-                    // Skip files that can't be read
+                    Log.w(TAG, "🔄 GET FILES - Skipping file due to error: ${e.message}")
                 }
             }
+            
+            Log.d(TAG, "🔄 GET FILES - Successfully loaded ${files.size} files")
             
             // Sort: directories first, then files, both alphabetically
             files.sortedWith(compareBy<FileItem> { !it.isDirectory }.thenBy { it.name.lowercase() })
         } catch (e: Exception) {
+            Log.e(TAG, "❌ GET FILES - Error getting files from folder", e)
             emptyList()
         }
     }
@@ -348,5 +372,46 @@ class FileManager(private val context: Context) {
             Log.e(TAG, "❌ WRITE FILE TO SYNC - Exception details: ${e.stackTraceToString()}")
             false
         }
+    }
+    
+    /**
+     * Force refresh folder contents by clearing any cached data
+     */
+    suspend fun refreshFolderContents(folderUri: Uri? = selectedFolderUri): List<FileItem> = withContext(Dispatchers.IO) {
+        Log.d(TAG, "🔄 REFRESH FOLDER - Force refreshing folder contents")
+        
+        // Add a small delay to ensure filesystem consistency
+        delay(100)
+        
+        // Get fresh file list
+        return@withContext getFilesInFolder(folderUri)
+    }
+    
+    /**
+     * Ensure sync files are written to the currently selected folder when possible
+     */
+    suspend fun writeFileToCurrentFolderOrSync(fileName: String, fileData: ByteArray): Pair<Boolean, Uri?> = withContext(Dispatchers.IO) {
+        // First try to write to currently selected folder
+        val currentFolder = selectedFolderUri
+        if (currentFolder != null) {
+            val success = writeFileToSyncFolder(currentFolder, fileName, fileData)
+            if (success) {
+                Log.d(TAG, "✅ WRITE FILE - Successfully wrote to current folder")
+                return@withContext Pair(true, currentFolder)
+            }
+        }
+        
+        // Fallback to creating a sync folder
+        val syncFolderUri = createFolderInDocuments("SyncReceived_${System.currentTimeMillis()}")
+        if (syncFolderUri != null) {
+            val success = writeFileToSyncFolder(syncFolderUri, fileName, fileData)
+            if (success) {
+                Log.d(TAG, "✅ WRITE FILE - Successfully wrote to new sync folder")
+                return@withContext Pair(true, syncFolderUri)
+            }
+        }
+        
+        Log.e(TAG, "❌ WRITE FILE - All attempts failed")
+        return@withContext Pair(false, null)
     }
 }

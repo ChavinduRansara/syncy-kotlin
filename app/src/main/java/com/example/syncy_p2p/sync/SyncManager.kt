@@ -66,10 +66,10 @@ class SyncManager(
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
             val requestId = UUID.randomUUID().toString()
-            
-            // Get folder metadata
+              // Get folder metadata - only count files, not directories
             val files = fileManager.getFilesInFolder(folderUri)
-            val totalSize = files.sumOf { it.size }
+            val fileFiles = files.filter { !it.isDirectory }
+            val totalSize = fileFiles.sumOf { it.size }
             
             val syncRequest = SyncRequest(
                 requestId = requestId,
@@ -77,7 +77,7 @@ class SyncManager(
                 sourceDeviceName = getCurrentDeviceName(),
                 folderName = folderName,
                 folderPath = folderUri.toString(),
-                totalFiles = files.size,
+                totalFiles = fileFiles.size,
                 totalSize = totalSize
             )
 
@@ -264,18 +264,20 @@ class SyncManager(
             // Update folder status
             updateSyncedFolderStatus(syncedFolder.id, SyncStatus.SYNCING)
             
-            callback?.onSyncStarted(syncedFolder.id)            // Get local files
+            callback?.onSyncStarted(syncedFolder.id)            // Get local files - filter out directories
             val localFiles = if (syncedFolder.localUri != null) {
-                fileManager.getFilesInFolder(syncedFolder.localUri).map { fileItem ->
-                    FileMetadata(
-                        name = fileItem.name,
-                        path = fileItem.uri.toString(),
-                        size = fileItem.size,
-                        lastModified = fileItem.lastModified,
-                        checksum = null, // Will be calculated if needed
-                        isDirectory = fileItem.isDirectory
-                    )
-                }
+                fileManager.getFilesInFolder(syncedFolder.localUri)
+                    .filter { !it.isDirectory }  // Only include files, not directories
+                    .map { fileItem ->
+                        FileMetadata(
+                            name = fileItem.name,
+                            path = fileItem.uri.toString(),
+                            size = fileItem.size,
+                            lastModified = fileItem.lastModified,
+                            checksum = null, // Will be calculated if needed
+                            isDirectory = fileItem.isDirectory
+                        )
+                    }
             } else {
                 emptyList()
             }
@@ -1570,9 +1572,9 @@ class SyncManager(
                         emptyList()
                     }
                 }
-            
-            // Convert FileItems to a simpler format for transmission
-            val fileList = files.map { file ->
+              // Convert FileItems to a simpler format for transmission
+            // CRITICAL FIX: Filter out directories to prevent EISDIR errors
+            val fileList = files.filter { !it.isDirectory }.map { file ->
                 mapOf(
                     "name" to file.name,
                     "size" to file.size,
@@ -1642,18 +1644,50 @@ class SyncManager(
                             fileToSend = folderFiles.find { it.name == fileName }
                         }
                     }
-                    
-                    if (fileToSend != null && !fileToSend.isDirectory) {
-                        // Create a temporary file for sending
-                        val tempFile = File(context.cacheDir, "temp_sync_${System.currentTimeMillis()}_${fileToSend.name}")
+                      if (fileToSend != null && !fileToSend.isDirectory) {
+                        // CRITICAL FIX: Use original filename for temp file to match FileSender expectations
+                        val tempFile = File(context.cacheDir, "temp_${fileToSend.name}")
                         
-                        // Copy file content to temp file
+                        // Ensure temp file doesn't already exist
+                        if (tempFile.exists()) {
+                            tempFile.delete()
+                        }
+                          // Copy file content to temp file
                         val inputStream = fileManager.getFileInputStream(fileToSend.uri)
                         if (inputStream != null) {
-                        inputStream.use { input ->
-                            tempFile.outputStream().use { output ->
-                                input.copyTo(output)
+                        try {
+                            inputStream.use { input ->
+                                tempFile.outputStream().use { output ->
+                                    input.copyTo(output)
+                                }
                             }
+                            
+                            // Verify temp file was created successfully
+                            if (!tempFile.exists() || tempFile.length() == 0L) {
+                                Log.e(TAG, "Failed to create temp file or file is empty: ${tempFile.absolutePath}")
+                                addSyncLog(
+                                    folderName = folderName,
+                                    action = "ERROR",
+                                    message = "Failed to create temp file for $fileName",
+                                    status = SyncLogStatus.ERROR,
+                                    deviceName = senderAddress,
+                                    fileName = fileName
+                                )
+                                return@launch
+                            }
+                            
+                            Log.d(TAG, "Created temp file: ${tempFile.absolutePath} (${tempFile.length()} bytes)")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error creating temp file for $fileName", e)
+                            addSyncLog(
+                                folderName = folderName,
+                                action = "ERROR",
+                                message = "Error creating temp file for $fileName: ${e.message}",
+                                status = SyncLogStatus.ERROR,
+                                deviceName = senderAddress,
+                                fileName = fileName
+                            )
+                            return@launch
                         }
                         
                         // Set readable permissions
@@ -1702,16 +1736,39 @@ class SyncManager(
                             deviceName = senderAddress,
                             fileName = fileName
                         )
+                    }                } else {
+                    // Log specific reason for file not being sendable
+                    if (fileToSend == null) {
+                        Log.w(TAG, "File not found: $fileName")
+                        addSyncLog(
+                            folderName = folderName,
+                            action = "ERROR",
+                            message = "Requested file $fileName not found",
+                            status = SyncLogStatus.ERROR,
+                            deviceName = senderAddress,
+                            fileName = fileName
+                        )
+                    } else if (fileToSend.isDirectory) {
+                        Log.w(TAG, "Skipping directory: $fileName")
+                        addSyncLog(
+                            folderName = folderName,
+                            action = "INFO",
+                            message = "Skipped directory $fileName - directories are not transferred",
+                            status = SyncLogStatus.INFO,
+                            deviceName = senderAddress,
+                            fileName = fileName
+                        )
+                    } else {
+                        Log.w(TAG, "File cannot be sent: $fileName")
+                        addSyncLog(
+                            folderName = folderName,
+                            action = "ERROR",
+                            message = "Requested file $fileName not found or is a directory",
+                            status = SyncLogStatus.ERROR,
+                            deviceName = senderAddress,
+                            fileName = fileName
+                        )
                     }
-                } else {
-                    addSyncLog(
-                        folderName = folderName,
-                        action = "ERROR",
-                        message = "Requested file $fileName not found or is a directory",
-                        status = SyncLogStatus.ERROR,
-                        deviceName = senderAddress,
-                        fileName = fileName
-                    )
                 }
             } else {
                 Log.e(TAG, "Invalid file request format: $message")
@@ -1741,10 +1798,13 @@ class SyncManager(
             
             if (remoteFiles.isNotEmpty()) {
                 Log.d(TAG, "Received ${remoteFiles.size} files in list from $senderAddress")
-                
-                // Find the synced folder that's expecting this response
+                  // Find the synced folder that's expecting this response
+                // Try multiple matching strategies to handle different device ID formats
                 val syncingFolder = _syncedFolders.value.find { 
-                    it.status == SyncStatus.SYNCING && it.remoteDeviceId == senderAddress 
+                    it.status == SyncStatus.SYNCING && 
+                    (it.remoteDeviceId == senderAddress || 
+                     it.remoteDeviceName.contains(senderAddress) || 
+                     senderAddress.contains(it.remoteDeviceId))
                 }
                 
                 if (syncingFolder != null) {
@@ -1823,9 +1883,20 @@ class SyncManager(
                         
                         callback?.onSyncCompleted(syncingFolder.id, true)
                         clearSyncProgress(syncingFolder.id)
-                    }
-                } else {
+                    }                } else {
                     Log.w(TAG, "No syncing folder found for files list response from $senderAddress")
+                    Log.d(TAG, "Available syncing folders: ${_syncedFolders.value.filter { it.status == SyncStatus.SYNCING }.map { "${it.name} (${it.remoteDeviceId})" }}")
+                    
+                    // Try to find any syncing folder and update its device info
+                    val anySyncingFolder = _syncedFolders.value.find { it.status == SyncStatus.SYNCING }
+                    if (anySyncingFolder != null) {
+                        Log.d(TAG, "Found syncing folder '${anySyncingFolder.name}', updating remoteDeviceId to match sender")                        // Update the folder to match the sender
+                        val updatedFolder = anySyncingFolder.copy(remoteDeviceId = senderAddress)
+                        updateSyncedFolderInternal(updatedFolder)
+                        
+                        // Process the files list with the updated folder
+                        processFilesListForSync(remoteFiles, updatedFolder, senderAddress)
+                    }
                 }
             } else {
                 Log.d(TAG, "Empty files list received from $senderAddress")
@@ -1918,13 +1989,100 @@ class SyncManager(
                             files.add(fileMap)
                         }
                     }
-                }
-            }
+                }            }
               Log.d(TAG, "Parsed ${files.size} files from JSON")
             files
         } catch (e: Exception) {
             Log.e(TAG, "Error parsing files list JSON", e)
             emptyList()
+        }
+    }
+
+    /**
+     * Process files list for sync operations
+     */
+    private fun processFilesListForSync(remoteFiles: List<Map<String, Any>>, syncedFolder: SyncedFolder, senderAddress: String) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                Log.d(TAG, "Processing ${remoteFiles.size} files for sync with folder: ${syncedFolder.name}")
+                
+                // Start requesting files one by one
+                for ((index, fileInfo) in remoteFiles.withIndex()) {
+                    val fileName = fileInfo["name"] as? String ?: continue
+                    val isDirectory = fileInfo["isDirectory"] as? Boolean ?: false
+                    
+                    if (!isDirectory) {
+                        // Update progress
+                        val progress = SyncProgress(
+                            folderName = syncedFolder.name,
+                            currentFile = fileName,
+                            filesProcessed = index,
+                            totalFiles = remoteFiles.size,
+                            bytesTransferred = 0L,
+                            totalBytes = 0L,
+                            status = "Requesting $fileName..."
+                        )
+                        updateSyncProgress(syncedFolder.id, progress)
+                        callback?.onSyncProgress(syncedFolder.id, progress)
+                        
+                        // Request this specific file
+                        val fileRequestMessage = "SYNC_REQUEST_FILE:$fileName:${syncedFolder.id}"
+                        wifiDirectManager.sendMessage(fileRequestMessage)
+                        
+                        addSyncLog(
+                            folderName = syncedFolder.name,
+                            action = "FILE_REQUESTED",
+                            message = "Requested file: $fileName",
+                            status = SyncLogStatus.INFO,
+                            deviceName = senderAddress,
+                            fileName = fileName
+                        )
+                        
+                        // Add delay between requests to avoid overwhelming the connection
+                        delay(1000)
+                    }
+                }
+                
+                // Mark sync as completed
+                val completedProgress = SyncProgress(
+                    folderName = syncedFolder.name,
+                    currentFile = "Sync completed",
+                    filesProcessed = remoteFiles.size,
+                    totalFiles = remoteFiles.size,
+                    bytesTransferred = 0L,
+                    totalBytes = 0L,
+                    status = "Sync completed"
+                )
+                updateSyncProgress(syncedFolder.id, completedProgress)
+                callback?.onSyncProgress(syncedFolder.id, completedProgress)
+                
+                // Update folder status
+                updateSyncedFolderInternal(syncedFolder.copy(
+                    lastSyncTime = System.currentTimeMillis(),
+                    status = SyncStatus.SYNCED
+                ))
+                
+                addSyncLog(
+                    folderName = syncedFolder.name,
+                    action = "SYNC_COMPLETED",
+                    message = "Sync completed successfully. ${remoteFiles.size} files processed.",
+                    status = SyncLogStatus.SUCCESS,
+                    deviceName = senderAddress
+                )
+                
+                callback?.onSyncCompleted(syncedFolder.id, true)
+                clearSyncProgress(syncedFolder.id)
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Error processing files list for sync", e)
+                addSyncLog(
+                    folderName = syncedFolder.name,
+                    action = "ERROR",
+                    message = "Error processing files list: ${e.message}",
+                    status = SyncLogStatus.ERROR,
+                    deviceName = senderAddress
+                )
+            }
         }
     }
 }

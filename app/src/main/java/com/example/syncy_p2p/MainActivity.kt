@@ -17,6 +17,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.documentfile.provider.DocumentFile
 import com.example.syncy_p2p.databinding.ActivityMainBinding
 import com.example.syncy_p2p.p2p.WiFiDirectManager
 import com.example.syncy_p2p.ui.SyncManagementActivity
@@ -25,6 +26,8 @@ import com.example.syncy_p2p.sync.FileConflict
 import com.example.syncy_p2p.sync.ConflictResolution
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import com.example.syncy_p2p.p2p.core.DeviceInfo
 import com.example.syncy_p2p.ui.PeerAdapter
 import com.example.syncy_p2p.files.FileManager
@@ -448,14 +451,26 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
     private fun updateFolderDisplay() {
         val folderPath = fileManager.selectedFolderPath
         binding.tvCurrentPath.text = folderPath ?: getString(R.string.no_folder_selected)
-    }
-
-    private fun loadFilesFromSelectedFolder() {
+    }    private fun loadFilesFromSelectedFolder() {
         lifecycleScope.launch {
             try {
+                Log.d(TAG, "🔄 LOAD FILES - Loading files from selected folder")
+                Log.d(TAG, "🔄 LOAD FILES - Selected folder URI: ${fileManager.selectedFolderUri}")
+                
                 val files = fileManager.getFilesInFolder()
-                fileAdapter.submitList(files)
+                Log.d(TAG, "🔄 LOAD FILES - Found ${files.size} files")
+                
+                // Update the adapter on the main thread
+                withContext(Dispatchers.Main) {
+                    fileAdapter.submitList(files.toList()) // Create new list to trigger diff
+                    fileAdapter.notifyDataSetChanged() // Force refresh
+                    Log.d(TAG, "🔄 LOAD FILES - Adapter updated with ${files.size} files")
+                    
+                    // Update file count display if you have one
+                    binding.tvCurrentPath.text = "${fileManager.selectedFolderPath ?: "No folder selected"} (${files.size} items)"
+                }
             } catch (e: Exception) {
+                Log.e(TAG, "❌ LOAD FILES - Error loading files", e)
                 onError("Failed to load files: ${e.message}")
             }
         }
@@ -627,6 +642,50 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
         }
     }
 
+    private fun forceRefreshAndVerifyFiles() {
+        lifecycleScope.launch {
+            try {
+                Log.d(TAG, "🔄 FORCE REFRESH - Starting comprehensive refresh")
+                
+                // Wait a bit for filesystem to settle
+                delay(500)
+                
+                // Use the enhanced refresh method
+                val files = fileManager.refreshFolderContents()
+                Log.d(TAG, "🔄 FORCE REFRESH - Found ${files.size} files after refresh")
+                
+                // Update UI on main thread
+                withContext(Dispatchers.Main) {
+                    fileAdapter.submitList(files.toList())
+                    fileAdapter.notifyDataSetChanged()
+                    
+                    // Update path display with file count
+                    binding.tvCurrentPath.text = "${fileManager.selectedFolderPath ?: "No folder selected"} (${files.size} items)"
+                    
+                    Log.d(TAG, "🔄 FORCE REFRESH - UI updated with ${files.size} files")
+                    
+                    // Show toast with file count
+                    Toast.makeText(this@MainActivity, "Folder refreshed: ${files.size} files found", Toast.LENGTH_SHORT).show()
+                }
+                
+                // Additional delayed refresh for SAF consistency
+                delay(1000)
+                val delayedFiles = fileManager.getFilesInFolder()
+                if (delayedFiles.size != files.size) {
+                    Log.d(TAG, "🔄 FORCE REFRESH - File count changed after delay: ${delayedFiles.size}")
+                    withContext(Dispatchers.Main) {
+                        fileAdapter.submitList(delayedFiles.toList())
+                        fileAdapter.notifyDataSetChanged()
+                        binding.tvCurrentPath.text = "${fileManager.selectedFolderPath ?: "No folder selected"} (${delayedFiles.size} items)"
+                    }
+                }
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ FORCE REFRESH - Error during refresh", e)
+            }
+        }
+    }
+    
     override fun onDestroy() {
         super.onDestroy()
         wifiDirectManager.cleanup()
@@ -663,71 +722,60 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
                 Log.d(TAG, "🔄 SYNC FILE RECEIVED - Temp file path: $tempFilePath")
                 Log.d(TAG, "🔄 SYNC FILE RECEIVED - Synced folder URI: $syncedFolderUri")
                 Log.d(TAG, "🔄 SYNC FILE RECEIVED - Sender address: $senderAddress")
+                  // ENHANCED FIX: Use the improved file writing method
+                Log.d(TAG, "🔄 SYNC FILE RECEIVED - Using enhanced file writing approach")
                 
-                // CRITICAL FIX: Try primary sync folder first, then fallback to alternatives
-                var success = false
-                var targetUri = syncedFolderUri
-                
-                // Primary attempt: Write to the designated sync folder
-                success = fileManager.writeFileToSyncFolder(syncedFolderUri, fileName, fileBytes)
-                
-                if (!success) {
-                    Log.w(TAG, "⚠️ SYNC FILE RECEIVED - Primary sync folder write failed, trying fallback options")
-                    
-                    // Fallback 1: Try current selected folder if available
-                    if (fileManager.hasSelectedFolder() && fileManager.selectedFolderUri != null) {
-                        Log.d(TAG, "🔄 SYNC FILE RECEIVED - Attempting fallback to selected folder")
-                        success = fileManager.writeFileToSyncFolder(fileManager.selectedFolderUri!!, fileName, fileBytes)
-                        if (success) {
-                            targetUri = fileManager.selectedFolderUri!!
-                            Log.d(TAG, "✅ SYNC FILE RECEIVED - Fallback to selected folder succeeded")
-                        }
-                    }
-                    
-                    // Fallback 2: Create a new sync folder if all else fails
-                    if (!success) {
-                        Log.d(TAG, "🔄 SYNC FILE RECEIVED - Attempting to create new sync folder")
-                        val newSyncFolderUri = fileManager.createFolderInDocuments("SyncReceived_${System.currentTimeMillis()}")
-                        if (newSyncFolderUri != null) {
-                            success = fileManager.writeFileToSyncFolder(newSyncFolderUri, fileName, fileBytes)
-                            if (success) {
-                                targetUri = newSyncFolderUri
-                                Log.d(TAG, "✅ SYNC FILE RECEIVED - New sync folder creation succeeded")
-                            }
-                        }
-                    }
-                    
-                    // Fallback 3: Last resort - save to app's external files directory
-                    if (!success) {
-                        Log.d(TAG, "🔄 SYNC FILE RECEIVED - Last resort: saving to external files directory")
-                        try {
-                            val externalDir = getExternalFilesDir("SyncReceived")
-                            if (externalDir != null) {
-                                externalDir.mkdirs()
-                                val targetFile = File(externalDir, fileName)
-                                targetFile.writeBytes(fileBytes)
-                                success = true
-                                Log.d(TAG, "✅ SYNC FILE RECEIVED - External files directory save succeeded: ${targetFile.absolutePath}")
-                            }
-                        } catch (e: Exception) {
-                            Log.e(TAG, "❌ SYNC FILE RECEIVED - External files directory save failed", e)
-                        }
-                    }
-                }
-                
-                if (success) {
+                val writeResult = fileManager.writeFileToCurrentFolderOrSync(fileName, fileBytes)
+                val success = writeResult.first
+                val targetUri = writeResult.second ?: syncedFolderUri
+                  if (success) {
                     Log.d(TAG, "✅ SYNC FILE RECEIVED - File successfully written: $fileName")
                     runOnUiThread {
                         Toast.makeText(this@MainActivity, "Sync file received: $fileName", Toast.LENGTH_SHORT).show()
-                        // Refresh file list if this is the current folder
-                        if (fileManager.selectedFolderUri == targetUri) {
-                            Log.d(TAG, "🔄 SYNC FILE RECEIVED - Refreshing file list for current folder")
-                            loadFilesFromSelectedFolder()
-                        } else {
-                            Log.d(TAG, "🔄 SYNC FILE RECEIVED - Not refreshing file list (different folder)")
+                        
+                        // CRITICAL FIX: Always refresh the file list and handle folder navigation
+                        Log.d(TAG, "🔄 SYNC FILE RECEIVED - Refreshing file list and checking folder state")
+                        
+                        // If the target folder is different from current, offer to navigate to it
+                        if (fileManager.selectedFolderUri != targetUri) {
+                            Log.d(TAG, "🔄 SYNC FILE RECEIVED - File saved to different folder")
                             Log.d(TAG, "🔄 SYNC FILE RECEIVED - Current folder: ${fileManager.selectedFolderUri}")
                             Log.d(TAG, "🔄 SYNC FILE RECEIVED - Target folder: $targetUri")
+                            
+                            // Show dialog to navigate to the sync folder
+                            androidx.appcompat.app.AlertDialog.Builder(this@MainActivity)
+                                .setTitle("File Received")
+                                .setMessage("File '$fileName' was saved to a sync folder. Do you want to navigate to it?")
+                                .setPositiveButton("View") { _, _ ->
+                                    // Navigate to the sync folder
+                                    fileManager.setSelectedFolder(targetUri)
+                                    updateFolderDisplay()
+                                    loadFilesFromSelectedFolder()
+                                    Toast.makeText(this@MainActivity, "Switched to sync folder", Toast.LENGTH_SHORT).show()
+                                }                                .setNegativeButton("Stay") { _, _ ->
+                                    // Just refresh current folder in case file was copied there too
+                                    loadFilesFromSelectedFolder()
+                                }
+                                .show()
+                        } else {
+                            // Same folder - use enhanced refresh
+                            Log.d(TAG, "🔄 SYNC FILE RECEIVED - Using enhanced refresh for current folder")
+                            forceRefreshAndVerifyFiles()
                         }
+                        
+                        // Additional verification - check if we can find the file
+                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                            lifecycleScope.launch {
+                                val currentFiles = fileManager.getFilesInFolder(targetUri)
+                                val foundFile = currentFiles.find { it.name == fileName }
+                                if (foundFile != null) {
+                                    Log.d(TAG, "✅ SYNC FILE RECEIVED - File verification SUCCESS: $fileName found")
+                                } else {
+                                    Log.w(TAG, "⚠️ SYNC FILE RECEIVED - File verification FAILED: $fileName not found in target folder")
+                                    Log.d(TAG, "🔍 SYNC FILE RECEIVED - Current files in target folder: ${currentFiles.map { it.name }}")
+                                }
+                            }
+                        }, 2000)
                     }
                 } else {
                     Log.e(TAG, "❌ SYNC FILE RECEIVED - All save attempts failed for file: $fileName")
@@ -834,6 +882,53 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
         runOnUiThread {
             binding.tvStatus.text = status
             Log.d(TAG, "Status: $status")
+        }
+    }
+    
+    /**
+     * Debug method to verify storage permissions and folder access
+     */
+    private fun debugStorageState() {
+        lifecycleScope.launch {
+            try {
+                Log.d(TAG, "🔍 STORAGE DEBUG - Checking storage state")
+                
+                // Check selected folder
+                val selectedUri = fileManager.selectedFolderUri
+                Log.d(TAG, "🔍 STORAGE DEBUG - Selected folder URI: $selectedUri")
+                
+                if (selectedUri != null) {
+                    val documentFile = DocumentFile.fromTreeUri(this@MainActivity, selectedUri)
+                    Log.d(TAG, "🔍 STORAGE DEBUG - DocumentFile exists: ${documentFile?.exists()}")
+                    Log.d(TAG, "🔍 STORAGE DEBUG - DocumentFile canRead: ${documentFile?.canRead()}")
+                    Log.d(TAG, "🔍 STORAGE DEBUG - DocumentFile canWrite: ${documentFile?.canWrite()}")
+                    Log.d(TAG, "🔍 STORAGE DEBUG - DocumentFile isDirectory: ${documentFile?.isDirectory}")
+                    
+                    // Check persistent permissions
+                    val persistedUris = contentResolver.persistedUriPermissions
+                    val hasPermission = persistedUris.any { it.uri == selectedUri && it.isWritePermission }
+                    Log.d(TAG, "🔍 STORAGE DEBUG - Has persistent write permission: $hasPermission")
+                      // Try to list files
+                    val files = fileManager.getFilesInFolder(selectedUri)
+                    Log.d(TAG, "🔍 STORAGE DEBUG - Found ${files.size} files in folder")
+                    files.forEach { file ->
+                        Log.d(TAG, "🔍 STORAGE DEBUG - File: ${file.name} (${file.size} bytes)")
+                    }
+                }
+                
+                // Check external storage state
+                val externalState = Environment.getExternalStorageState()
+                Log.d(TAG, "🔍 STORAGE DEBUG - External storage state: $externalState")
+                
+                // Check app's external files directory
+                val externalFilesDir = getExternalFilesDir(null)
+                Log.d(TAG, "🔍 STORAGE DEBUG - External files dir: ${externalFilesDir?.absolutePath}")
+                Log.d(TAG, "🔍 STORAGE DEBUG - External files dir exists: ${externalFilesDir?.exists()}")
+                Log.d(TAG, "🔍 STORAGE DEBUG - External files dir canWrite: ${externalFilesDir?.canWrite()}")
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ STORAGE DEBUG - Error during storage debug", e)
+            }
         }
     }
 }
