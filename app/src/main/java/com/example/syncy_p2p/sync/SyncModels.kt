@@ -61,7 +61,12 @@ enum class SyncStatus {
     SYNCING,
     CONFLICT,
     ERROR,
-    DISCONNECTED
+    DISCONNECTED,
+    INITIALIZING,
+    SCANNING,
+    COMPLETED,
+    FAILED,
+    CANCELLED
 }
 
 /**
@@ -157,6 +162,7 @@ data class SyncLogEntry(
  */
 @Parcelize
 data class FileConflict(
+    val id: String,
     val fileName: String,
     val filePath: String,
     val localFileSize: Long,

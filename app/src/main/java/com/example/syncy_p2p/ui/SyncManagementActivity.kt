@@ -143,10 +143,9 @@ class SyncManagementActivity : AppCompatActivity() {
     }
     
     private fun initiateResync(folder: SyncedFolder) {
-        lifecycleScope.launch {
-            try {
-                val success = syncManager.initiateFolderSync(folder.localPath, folder.remoteDeviceName)
-                if (success) {
+        lifecycleScope.launch {            try {
+                val result = syncManager.initiateFolderSync(folder.localUri ?: return@launch, folder.remoteDeviceName)
+                if (result.isSuccess) {
                     Toast.makeText(this@SyncManagementActivity, "Resync initiated", Toast.LENGTH_SHORT).show()
                 } else {
                     Toast.makeText(this@SyncManagementActivity, "Failed to initiate resync", Toast.LENGTH_SHORT).show()

@@ -19,6 +19,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.documentfile.provider.DocumentFile
 import com.example.syncy_p2p.databinding.ActivityMainBinding
+import com.example.syncy_p2p.sync.SyncMode
 import com.example.syncy_p2p.p2p.WiFiDirectManager
 import com.example.syncy_p2p.ui.SyncManagementActivity
 import com.example.syncy_p2p.ui.ConflictResolutionDialog
@@ -36,6 +37,7 @@ import com.example.syncy_p2p.files.FileItem
 import com.example.syncy_p2p.files.FileTransferProgress
 import com.example.syncy_p2p.sync.SyncManager
 import java.io.File
+import org.json.JSONObject
 
 class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
 
@@ -165,6 +167,10 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
 
         binding.btnSyncManagement.setOnClickListener {
             openSyncManagement()
+        }
+
+        binding.btnSyncFolder.setOnClickListener {
+            startFolderSyncWithMode()
         }
     }
 
@@ -595,13 +601,12 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
             Toast.makeText(this, "Please select a folder first", Toast.LENGTH_SHORT).show()
             return
         }
-        
-        val folderPath = fileManager.selectedFolderPath ?: return
+          val folderUri = fileManager.selectedFolderUri ?: return
         
         lifecycleScope.launch {
             try {
-                val success = syncManager.initiateFolderSync(folderPath, "Remote Device")
-                if (success) {
+                val result = syncManager.initiateFolderSync(folderUri, "Remote Device")
+                if (result.isSuccess) {
                     Toast.makeText(this@MainActivity, "Sync request sent", Toast.LENGTH_SHORT).show()
                 } else {
                     Toast.makeText(this@MainActivity, "Failed to send sync request", Toast.LENGTH_SHORT).show()
@@ -624,7 +629,7 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
             ConflictResolutionDialog.show(this, conflict) { resolution ->
                 lifecycleScope.launch {
                     try {
-                        syncManager.resolveConflict(conflict, resolution)
+                        syncManager.resolveConflict(conflict.id, resolution)
                         val resolutionText = when (resolution) {
                             ConflictResolution.OVERWRITE_LOCAL -> "kept remote file"
                             ConflictResolution.OVERWRITE_REMOTE -> "kept local file"
@@ -722,119 +727,125 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
                 Log.d(TAG, "🔄 SYNC FILE RECEIVED - Temp file path: $tempFilePath")
                 Log.d(TAG, "🔄 SYNC FILE RECEIVED - Synced folder URI: $syncedFolderUri")
                 Log.d(TAG, "🔄 SYNC FILE RECEIVED - Sender address: $senderAddress")
-                  // ENHANCED FIX: Use the improved file writing method
-                Log.d(TAG, "🔄 SYNC FILE RECEIVED - Using enhanced file writing approach")
                 
-                val writeResult = fileManager.writeFileToCurrentFolderOrSync(fileName, fileBytes)
-                val success = writeResult.first
-                val targetUri = writeResult.second ?: syncedFolderUri
-                  if (success) {
-                    Log.d(TAG, "✅ SYNC FILE RECEIVED - File successfully written: $fileName")
+                // CRITICAL FIX: Save directly to the synced folder URI
+                Log.d(TAG, "🔄 SYNC FILE RECEIVED - Saving directly to synced folder")
+                
+                val success = fileManager.writeFileToSyncFolder(syncedFolderUri, fileName, fileBytes)
+                
+                if (success) {
+                    Log.d(TAG, "✅ SYNC FILE RECEIVED - File successfully written to sync folder: $fileName")
+                    
+                    // Clean up temp file
+                    try {
+                        val tempFile = java.io.File(tempFilePath)
+                        if (tempFile.exists()) {
+                            tempFile.delete()
+                            Log.d(TAG, "🧹 SYNC FILE RECEIVED - Cleaned up temp file: $tempFilePath")
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "⚠️ SYNC FILE RECEIVED - Failed to clean up temp file: ${e.message}")
+                    }
+                    
                     runOnUiThread {
                         Toast.makeText(this@MainActivity, "Sync file received: $fileName", Toast.LENGTH_SHORT).show()
                         
-                        // CRITICAL FIX: Always refresh the file list and handle folder navigation
-                        Log.d(TAG, "🔄 SYNC FILE RECEIVED - Refreshing file list and checking folder state")
-                        
-                        // If the target folder is different from current, offer to navigate to it
-                        if (fileManager.selectedFolderUri != targetUri) {
-                            Log.d(TAG, "🔄 SYNC FILE RECEIVED - File saved to different folder")
-                            Log.d(TAG, "🔄 SYNC FILE RECEIVED - Current folder: ${fileManager.selectedFolderUri}")
-                            Log.d(TAG, "🔄 SYNC FILE RECEIVED - Target folder: $targetUri")
+                        // Check if we need to refresh the current view
+                        if (fileManager.selectedFolderUri == syncedFolderUri) {
+                            Log.d(TAG, "🔄 SYNC FILE RECEIVED - Refreshing current folder view")
+                            loadFilesFromSelectedFolder()
+                        } else {
+                            Log.d(TAG, "🔄 SYNC FILE RECEIVED - File saved to different folder, showing navigation option")
                             
                             // Show dialog to navigate to the sync folder
                             androidx.appcompat.app.AlertDialog.Builder(this@MainActivity)
-                                .setTitle("File Received")
-                                .setMessage("File '$fileName' was saved to a sync folder. Do you want to navigate to it?")
-                                .setPositiveButton("View") { _, _ ->
+                                .setTitle("Sync File Received")
+                                .setMessage("File '$fileName' was saved to the sync folder. Do you want to view it?")
+                                .setPositiveButton("View Folder") { _, _ ->
                                     // Navigate to the sync folder
-                                    fileManager.setSelectedFolder(targetUri)
+                                    fileManager.setSelectedFolder(syncedFolderUri)
                                     updateFolderDisplay()
                                     loadFilesFromSelectedFolder()
                                     Toast.makeText(this@MainActivity, "Switched to sync folder", Toast.LENGTH_SHORT).show()
-                                }                                .setNegativeButton("Stay") { _, _ ->
-                                    // Just refresh current folder in case file was copied there too
-                                    loadFilesFromSelectedFolder()
+                                }
+                                .setNegativeButton("Stay") { _, _ ->
+                                    // Just stay in current folder
                                 }
                                 .show()
-                        } else {
-                            // Same folder - use enhanced refresh
-                            Log.d(TAG, "🔄 SYNC FILE RECEIVED - Using enhanced refresh for current folder")
-                            forceRefreshAndVerifyFiles()
                         }
                         
-                        // Additional verification - check if we can find the file
+                        // Verify file was saved correctly
                         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                             lifecycleScope.launch {
-                                val currentFiles = fileManager.getFilesInFolder(targetUri)
-                                val foundFile = currentFiles.find { it.name == fileName }
+                                val filesInSyncFolder = fileManager.getFilesInFolder(syncedFolderUri)
+                                val foundFile = filesInSyncFolder.find { it.name == fileName }
                                 if (foundFile != null) {
-                                    Log.d(TAG, "✅ SYNC FILE RECEIVED - File verification SUCCESS: $fileName found")
+                                    Log.d(TAG, "✅ SYNC FILE RECEIVED - File verification SUCCESS: $fileName found in sync folder")
+                                    Log.d(TAG, "✅ SYNC FILE RECEIVED - File size: ${foundFile.size} bytes")
                                 } else {
-                                    Log.w(TAG, "⚠️ SYNC FILE RECEIVED - File verification FAILED: $fileName not found in target folder")
-                                    Log.d(TAG, "🔍 SYNC FILE RECEIVED - Current files in target folder: ${currentFiles.map { it.name }}")
+                                    Log.w(TAG, "⚠️ SYNC FILE RECEIVED - File verification FAILED: $fileName not found in sync folder")
+                                    Log.d(TAG, "🔍 SYNC FILE RECEIVED - Files in sync folder: ${filesInSyncFolder.map { "${it.name} (${it.size}B)" }}")
                                 }
                             }
-                        }, 2000)
+                        }, 500)
                     }
                 } else {
-                    Log.e(TAG, "❌ SYNC FILE RECEIVED - All save attempts failed for file: $fileName")
+                    Log.e(TAG, "❌ SYNC FILE RECEIVED - Failed to save file to sync folder: $fileName")
                     runOnUiThread {
-                        Toast.makeText(this@MainActivity, "Failed to save sync file: $fileName - Check storage permissions", Toast.LENGTH_LONG).show()
+                        Toast.makeText(this@MainActivity, "Failed to save sync file: $fileName", Toast.LENGTH_LONG).show()
                     }
-                }
-                
-                // Clean up temp file
-                try {
-                    val tempFile = java.io.File(tempFilePath)
-                    if (tempFile.exists()) {
-                        val deleted = tempFile.delete()
-                        Log.d(TAG, "🔄 SYNC FILE RECEIVED - Temp file cleanup: $deleted for $tempFilePath")
-                    } else {
-                        Log.d(TAG, "🔄 SYNC FILE RECEIVED - Temp file does not exist: $tempFilePath")
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "❌ SYNC FILE RECEIVED - Failed to delete temp file: $tempFilePath", e)
                 }
                 
             } catch (e: Exception) {
-                Log.e(TAG, "❌ SYNC FILE RECEIVED - Unexpected error processing sync file", e)
+                Log.e(TAG, "❌ SYNC FILE RECEIVED - Exception processing sync file", e)
                 runOnUiThread {
-                    Toast.makeText(this@MainActivity, "Error processing sync file: ${e.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@MainActivity, "Error receiving sync file: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
         }
-    }override fun onSyncRequestReceived(requestJson: String, senderAddress: String) {
+    }
+
+    override fun onSyncRequestReceived(requestJson: String, senderAddress: String) {
         Log.d(TAG, "🚨 SYNC REQUEST RECEIVED IN MAINACTIVITY 🚨")
         Log.d(TAG, "From: $senderAddress")
         Log.d(TAG, "Request JSON: $requestJson")
         
-        // Parse the sync request
+        try {
+            // Check if this is a folder structure request
+            val jsonObj = JSONObject(requestJson)
+            if (jsonObj.has("type") && jsonObj.getString("type") == "FOLDER_STRUCTURE_REQUEST") {
+                Log.d(TAG, "🗂️ FOLDER STRUCTURE REQUEST detected")
+                // Handle folder structure request
+                syncManager.handleFolderStructureRequest(requestJson, senderAddress)
+                return
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error checking request type", e)
+        }
+        
+        // Parse as a full sync request
         val request = syncManager.parseSyncRequestFromJson(requestJson)
         if (request != null) {
             runOnUiThread {
                 // Show accept/reject dialog
                 showSyncRequestDialog(request)
             }
-            
-            // Also handle it in sync manager for logging
-            syncManager.handleSyncRequest(requestJson, senderAddress)
+              // Also handle it in sync manager for logging
+            syncManager.handleSyncRequest(request)
         } else {
             Log.e(TAG, "Failed to parse sync request JSON")
             runOnUiThread {
-                Toast.makeText(this, "Invalid sync request received", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Received folder structure request", Toast.LENGTH_SHORT).show()
             }
         }
-    }
-
-    override fun onSyncResponseReceived(response: String, senderAddress: String) {
+    }override fun onSyncResponseReceived(response: String, senderAddress: String) {
         Log.d(TAG, "Sync response received from $senderAddress: $response")
-        syncManager.handleSyncResponse(response, senderAddress)
+        syncManager.handleSyncResponse(response)
     }
 
     override fun onSyncProgressReceived(progressJson: String, senderAddress: String) {
         Log.d(TAG, "Sync progress received from $senderAddress")
-        syncManager.handleSyncProgress(progressJson, senderAddress)
+        syncManager.handleSyncProgress(progressJson)
     }
 
     override fun onSyncStartTransferReceived(message: String, senderAddress: String) {
@@ -931,4 +942,50 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
             }
         }
     }
+
+    private fun startFolderSyncWithMode() {
+        if (!fileManager.hasSelectedFolder()) {
+            Toast.makeText(this, "Please select a folder first", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        // Show dialog to select sync mode
+        val modes = arrayOf("Two-Way Sync", "One-Way Backup", "One-Way Mirror")
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Select Sync Mode")
+            .setItems(modes) { _, which ->
+                val mode = when (which) {
+                    0 -> SyncMode.TWO_WAY
+                    1 -> SyncMode.ONE_WAY_BACKUP
+                    2 -> SyncMode.ONE_WAY_MIRROR
+                    else -> SyncMode.TWO_WAY
+                }
+                
+                val targetDevice = getConnectedDeviceAddress()
+                if (targetDevice != null) {
+                    lifecycleScope.launch {
+                        val result = syncManager.startFolderSync(
+                            fileManager.selectedFolderUri!!,
+                            targetDevice,
+                            mode
+                        )
+                        
+                        result.onSuccess { syncId ->
+                            Toast.makeText(this@MainActivity, "Folder sync started: $syncId", Toast.LENGTH_SHORT).show()
+                        }.onFailure { error ->
+                            Toast.makeText(this@MainActivity, "Sync failed: ${error.message}", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                } else {
+                    Toast.makeText(this, "No connected device found", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .show()
+    }
+
+    private fun getConnectedDeviceAddress(): String? {
+        // Get the address of the currently connected device
+        return wifiDirectManager.connectionInfo.value?.groupOwnerAddress
+    }
+
 }

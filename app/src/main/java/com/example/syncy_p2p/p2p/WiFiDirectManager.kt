@@ -299,13 +299,21 @@ class WiFiDirectManager(private val context: Context) : EventReceiver.WiFiDirect
                 Log.d(TAG, "=== PROCESSING RECEIVED MESSAGE ===")
                 Log.d(TAG, "From: $senderAddress")
                 Log.d(TAG, "Message: '$message'")
-                Log.d(TAG, "Processing sync-specific messages...")
-                  // Handle sync-specific messages
+                Log.d(TAG, "Processing sync-specific messages...")                  // Handle sync-specific messages
                 when {
                     message.startsWith("SYNC_REQUEST:") -> {
                         val requestJson = message.removePrefix("SYNC_REQUEST:")
                         Log.d(TAG, "🔄 SYNC REQUEST DETECTED: $requestJson")
                         callback?.onSyncRequestReceived(requestJson, senderAddress)
+                    }
+                    message.startsWith("SYNC_FOLDER_STRUCTURE_REQUEST:") -> {
+                        val requestJson = message.removePrefix("SYNC_FOLDER_STRUCTURE_REQUEST:")
+                        Log.d(TAG, "🗂️ SYNC FOLDER STRUCTURE REQUEST DETECTED: $requestJson")
+                        callback?.onSyncRequestReceived(requestJson, senderAddress)
+                    }
+                    message.startsWith("SYNC_FOLDER_STRUCTURE_RESPONSE:") -> {
+                        Log.d(TAG, "🗂️ SYNC FOLDER STRUCTURE RESPONSE DETECTED: $message")
+                        callback?.onSyncResponseReceived(message, senderAddress)
                     }
                     message.startsWith("SYNC_ACCEPTED:") || message.startsWith("SYNC_REJECTED:") -> {
                         Log.d(TAG, "✅ SYNC RESPONSE DETECTED: $message")
@@ -324,9 +332,12 @@ class WiFiDirectManager(private val context: Context) : EventReceiver.WiFiDirect
                         val folderPath = message.removePrefix("SYNC_REQUEST_FILES_LIST:")
                         Log.d(TAG, "📋 SYNC REQUEST FILES LIST DETECTED: $folderPath")
                         callback?.onSyncRequestFilesListReceived(folderPath, senderAddress)
-                    }
-                    message.startsWith("SYNC_REQUEST_FILE:") -> {
+                    }                    message.startsWith("SYNC_REQUEST_FILE:") -> {
                         Log.d(TAG, "📁 SYNC REQUEST FILE DETECTED: $message")
+                        callback?.onSyncRequestFileReceived(message, senderAddress)
+                    }
+                    message.startsWith("SYNC_FILE_REQUEST:") -> {
+                        Log.d(TAG, "📁 SYNC FILE REQUEST DETECTED: $message")
                         callback?.onSyncRequestFileReceived(message, senderAddress)
                     }
                     message.startsWith("SYNC_FILES_LIST_RESPONSE:") -> {

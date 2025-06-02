@@ -40,8 +40,7 @@ class SyncedFoldersAdapter(
                 
                 // Format last sync time
                 val dateFormat = SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault())
-                tvLastSync.text = "Last sync: ${dateFormat.format(Date(syncedFolder.lastSyncTime))}"
-                  // Set status and color
+                tvLastSync.text = "Last sync: ${dateFormat.format(Date(syncedFolder.lastSyncTime))}"                // Set status and color
                 when (syncedFolder.status) {
                     SyncStatus.SYNCED -> {
                         tvStatus.text = "Synced"
@@ -65,6 +64,26 @@ class SyncedFoldersAdapter(
                     }
                     SyncStatus.DISCONNECTED -> {
                         tvStatus.text = "Disconnected"
+                        tvStatus.setTextColor(binding.root.context.getColor(android.R.color.darker_gray))
+                    }
+                    SyncStatus.INITIALIZING -> {
+                        tvStatus.text = "Initializing..."
+                        tvStatus.setTextColor(binding.root.context.getColor(android.R.color.holo_blue_dark))
+                    }
+                    SyncStatus.SCANNING -> {
+                        tvStatus.text = "Scanning..."
+                        tvStatus.setTextColor(binding.root.context.getColor(android.R.color.holo_blue_dark))
+                    }
+                    SyncStatus.COMPLETED -> {
+                        tvStatus.text = "Completed"
+                        tvStatus.setTextColor(binding.root.context.getColor(android.R.color.holo_green_dark))
+                    }
+                    SyncStatus.FAILED -> {
+                        tvStatus.text = "Failed"
+                        tvStatus.setTextColor(binding.root.context.getColor(android.R.color.holo_red_dark))
+                    }
+                    SyncStatus.CANCELLED -> {
+                        tvStatus.text = "Cancelled"
                         tvStatus.setTextColor(binding.root.context.getColor(android.R.color.darker_gray))
                     }
                 }
