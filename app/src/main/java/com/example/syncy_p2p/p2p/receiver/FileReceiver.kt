@@ -32,24 +32,38 @@ class FileReceiver(
             Log.w(TAG, "FileReceiver already running")
             return
         }
-
+        
         receiverJob = CoroutineScope(Dispatchers.IO).launch {
-            try {                isRunning = true
+            try {
+                isRunning = true
                 serverSocket = ServerSocket(Config.FILE_PORT).apply {
                     soTimeout = 0  // No timeout for accept() - wait indefinitely
                     reuseAddress = true
                 }
                 Log.d(TAG, "FileReceiver started on port ${Config.FILE_PORT}")
 
-                val clientSocket = serverSocket?.accept()
-                if (clientSocket != null && isRunning) {
-                    // Configure client socket for stability
-                    clientSocket.soTimeout = Config.SOCKET_READ_TIMEOUT
-                    clientSocket.tcpNoDelay = true
-                    clientSocket.keepAlive = true
-                    clientSocket.setSoLinger(true, 10)
-                    
-                    handleFileTransfer(clientSocket)
+                // Continuously accept multiple file connections during sync operations
+                while (isRunning && !Thread.currentThread().isInterrupted()) {
+                    try {
+                        Log.d(TAG, "Waiting for file transfer connection...")
+                        val clientSocket = serverSocket?.accept()
+                        if (clientSocket != null && isRunning) {
+                            Log.d(TAG, "File transfer connection accepted from: ${clientSocket.inetAddress.hostAddress}")
+                            
+                            // Configure client socket for stability
+                            clientSocket.soTimeout = Config.SOCKET_READ_TIMEOUT
+                            clientSocket.tcpNoDelay = true
+                            clientSocket.keepAlive = true
+                            clientSocket.setSoLinger(true, 10)
+                            
+                            // Handle each file transfer in a separate coroutine to allow multiple concurrent transfers
+                            launch { handleFileTransfer(clientSocket) }
+                        }
+                    } catch (e: IOException) {
+                        if (isRunning) {
+                            Log.e(TAG, "Error accepting file transfer connection", e)
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "FileReceiver error", e)
@@ -70,10 +84,12 @@ class FileReceiver(
             serverSocket?.close()
             receiverJob?.cancel()
         } catch (e: Exception) {
-            Log.w(TAG, "Error stopping FileReceiver", e)
-        }
-    }    private suspend fun handleFileTransfer(clientSocket: Socket) {
-        withContext(Dispatchers.IO) {            try {
+            Log.w(TAG, "Error stopping FileReceiver", e)        }
+    }
+
+    private suspend fun handleFileTransfer(clientSocket: Socket) {
+        withContext(Dispatchers.IO) {
+            try {
                 clientSocket.use { socket ->
                     val senderAddress = socket.inetAddress.hostAddress ?: "unknown"
                     val inputStream = socket.getInputStream()

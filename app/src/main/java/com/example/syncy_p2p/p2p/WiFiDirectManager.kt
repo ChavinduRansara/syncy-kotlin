@@ -23,9 +23,15 @@ class WiFiDirectManager(private val context: Context) : EventReceiver.WiFiDirect
     }    interface WiFiDirectCallback {
         fun onMessageReceived(message: String, senderAddress: String)
         fun onFileReceived(filePath: String, senderAddress: String)
+        fun onFileTransferProgress(progress: com.example.syncy_p2p.files.FileTransferProgress)
+        fun onSyncFileReceived(tempFilePath: String, fileName: String, fileBytes: ByteArray, syncedFolderUri: android.net.Uri, senderAddress: String)
         fun onSyncRequestReceived(requestJson: String, senderAddress: String)
         fun onSyncResponseReceived(response: String, senderAddress: String)
         fun onSyncProgressReceived(progressJson: String, senderAddress: String)
+        fun onSyncStartTransferReceived(message: String, senderAddress: String)
+        fun onSyncRequestFilesListReceived(folderPath: String, senderAddress: String)
+        fun onSyncRequestFileReceived(message: String, senderAddress: String)
+        fun onSyncFilesListResponseReceived(filesListJson: String, senderAddress: String)
         fun onError(error: String)
         fun onStatusChanged(status: String)
     }
@@ -294,8 +300,7 @@ class WiFiDirectManager(private val context: Context) : EventReceiver.WiFiDirect
                 Log.d(TAG, "From: $senderAddress")
                 Log.d(TAG, "Message: '$message'")
                 Log.d(TAG, "Processing sync-specific messages...")
-                
-                // Handle sync-specific messages
+                  // Handle sync-specific messages
                 when {
                     message.startsWith("SYNC_REQUEST:") -> {
                         val requestJson = message.removePrefix("SYNC_REQUEST:")
@@ -310,6 +315,24 @@ class WiFiDirectManager(private val context: Context) : EventReceiver.WiFiDirect
                         val progressJson = message.removePrefix("SYNC_PROGRESS:")
                         Log.d(TAG, "📊 SYNC PROGRESS DETECTED: $progressJson")
                         callback?.onSyncProgressReceived(progressJson, senderAddress)
+                    }
+                    message.startsWith("SYNC_START_TRANSFER:") -> {
+                        Log.d(TAG, "🚀 SYNC START TRANSFER DETECTED: $message")
+                        callback?.onSyncStartTransferReceived(message, senderAddress)
+                    }
+                    message.startsWith("SYNC_REQUEST_FILES_LIST:") -> {
+                        val folderPath = message.removePrefix("SYNC_REQUEST_FILES_LIST:")
+                        Log.d(TAG, "📋 SYNC REQUEST FILES LIST DETECTED: $folderPath")
+                        callback?.onSyncRequestFilesListReceived(folderPath, senderAddress)
+                    }
+                    message.startsWith("SYNC_REQUEST_FILE:") -> {
+                        Log.d(TAG, "📁 SYNC REQUEST FILE DETECTED: $message")
+                        callback?.onSyncRequestFileReceived(message, senderAddress)
+                    }
+                    message.startsWith("SYNC_FILES_LIST_RESPONSE:") -> {
+                        val filesListJson = message.removePrefix("SYNC_FILES_LIST_RESPONSE:")
+                        Log.d(TAG, "📋 SYNC FILES LIST RESPONSE DETECTED: $filesListJson")
+                        callback?.onSyncFilesListResponseReceived(filesListJson, senderAddress)
                     }
                     else -> {
                         Log.d(TAG, "💬 REGULAR MESSAGE DETECTED")
@@ -330,34 +353,64 @@ class WiFiDirectManager(private val context: Context) : EventReceiver.WiFiDirect
     fun stopReceivingMessages() {
         messageReceiver?.stop()
         messageReceiver = null
-    }
-
-    fun startReceivingFiles(): Result<Unit> {
+    }    fun startReceivingFiles(destinationPath: String? = null, syncedFolderUri: android.net.Uri? = null): Result<Unit> {
         return try {
             if (fileReceiver?.isRunning == true) {
                 return Result.success(Unit)
             }
 
+            val targetPath = destinationPath ?: (context.getExternalFilesDir(null)?.absolutePath ?: context.filesDir.absolutePath)
+
             fileReceiver = FileReceiver(
                 context = context,
-                destinationPath = context.getExternalFilesDir(null)?.absolutePath ?: context.filesDir.absolutePath,
+                destinationPath = targetPath,
                 onComplete = { filePath, metadata, senderAddress ->
                     // Track the peer address when receiving files
                     addConnectedPeer(senderAddress)
-                    callback?.onFileReceived(filePath, senderAddress)
+                      // If we have a synced folder URI, copy the file there as well
+                    if (syncedFolderUri != null && metadata != null) {
+                        try {
+                            android.util.Log.d("WiFiDirectManager", "🔄 SYNC FILE RECEIVE - Processing file for sync")
+                            android.util.Log.d("WiFiDirectManager", "🔄 SYNC FILE RECEIVE - File path: $filePath")
+                            android.util.Log.d("WiFiDirectManager", "🔄 SYNC FILE RECEIVE - File name: ${metadata.fileName}")
+                            android.util.Log.d("WiFiDirectManager", "🔄 SYNC FILE RECEIVE - Synced folder URI: $syncedFolderUri")
+                            android.util.Log.d("WiFiDirectManager", "🔄 SYNC FILE RECEIVE - Sender address: $senderAddress")
+                            
+                            val file = java.io.File(filePath)
+                            if (file.exists()) {
+                                val fileBytes = file.readBytes()
+                                android.util.Log.d("WiFiDirectManager", "🔄 SYNC FILE RECEIVE - File bytes read: ${fileBytes.size}")
+                                
+                                // Use FileManager to write to the proper SAF folder
+                                // This will be handled by the callback
+                                callback?.onFileReceived(filePath, senderAddress)
+                                android.util.Log.d("WiFiDirectManager", "🔄 SYNC FILE RECEIVE - Calling onSyncFileReceived callback")
+                                callback?.onSyncFileReceived(filePath, metadata.fileName, fileBytes, syncedFolderUri, senderAddress)
+                            } else {
+                                android.util.Log.e("WiFiDirectManager", "❌ SYNC FILE RECEIVE - Temp file does not exist: $filePath")
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("WiFiDirectManager", "❌ SYNC FILE RECEIVE - Error copying file to sync folder", e)
+                        }
+                    } else {
+                        android.util.Log.d("WiFiDirectManager", "🔄 REGULAR FILE RECEIVE - No sync folder URI, using regular callback")
+                        callback?.onFileReceived(filePath, senderAddress)
+                    }
                 },
                 onError = { error ->
                     callback?.onError("File receive error: $error")
                 },
                 onProgress = { progress ->
-                    Log.d(TAG, "File transfer progress: ${progress.percentage}%")
+                    android.util.Log.d("WiFiDirectManager", "File transfer progress: ${progress.percentage}%")
+                    // Forward progress to callback for UI updates
+                    callback?.onFileTransferProgress(progress)
                 }
             )
             fileReceiver?.start()
-            Log.d(TAG, "File receiver started for automatic two-way communication")
+            android.util.Log.d("WiFiDirectManager", "File receiver started for automatic two-way communication at: $targetPath")
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to start file receiver", e)
+            android.util.Log.e("WiFiDirectManager", "Failed to start file receiver", e)
             Result.failure(e)
         }
     }

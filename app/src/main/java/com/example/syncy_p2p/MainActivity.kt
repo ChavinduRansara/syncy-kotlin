@@ -640,17 +640,143 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
     }    override fun onFileReceived(filePath: String, senderAddress: String) {
         runOnUiThread {
             Toast.makeText(this, "File received from $senderAddress: $filePath", Toast.LENGTH_LONG).show()
+            // Refresh file list to show newly received files
+            loadFilesFromSelectedFolder()
         }
-    }    override fun onSyncRequestReceived(requestJson: String, senderAddress: String) {
+    }    override fun onFileTransferProgress(progress: com.example.syncy_p2p.files.FileTransferProgress) {
+        runOnUiThread {
+            // Update progress in sync management activity or sync progress dialog
+            updateSyncProgress(com.example.syncy_p2p.sync.SyncProgress(
+                folderName = "File Transfer",
+                currentFile = progress.fileName,
+                filesProcessed = if (progress.percentage == 100) 1 else 0,
+                totalFiles = 1,
+                bytesTransferred = progress.bytesTransferred,
+                totalBytes = progress.totalBytes,
+                status = "${progress.percentage}% - ${progress.fileName}"
+            ))
+        }
+    }    override fun onSyncFileReceived(tempFilePath: String, fileName: String, fileBytes: ByteArray, syncedFolderUri: android.net.Uri, senderAddress: String) {
+        lifecycleScope.launch {
+            try {
+                Log.d(TAG, "🔄 SYNC FILE RECEIVED - Processing file: $fileName (${fileBytes.size} bytes)")
+                Log.d(TAG, "🔄 SYNC FILE RECEIVED - Temp file path: $tempFilePath")
+                Log.d(TAG, "🔄 SYNC FILE RECEIVED - Synced folder URI: $syncedFolderUri")
+                Log.d(TAG, "🔄 SYNC FILE RECEIVED - Sender address: $senderAddress")
+                
+                // CRITICAL FIX: Try primary sync folder first, then fallback to alternatives
+                var success = false
+                var targetUri = syncedFolderUri
+                
+                // Primary attempt: Write to the designated sync folder
+                success = fileManager.writeFileToSyncFolder(syncedFolderUri, fileName, fileBytes)
+                
+                if (!success) {
+                    Log.w(TAG, "⚠️ SYNC FILE RECEIVED - Primary sync folder write failed, trying fallback options")
+                    
+                    // Fallback 1: Try current selected folder if available
+                    if (fileManager.hasSelectedFolder() && fileManager.selectedFolderUri != null) {
+                        Log.d(TAG, "🔄 SYNC FILE RECEIVED - Attempting fallback to selected folder")
+                        success = fileManager.writeFileToSyncFolder(fileManager.selectedFolderUri!!, fileName, fileBytes)
+                        if (success) {
+                            targetUri = fileManager.selectedFolderUri!!
+                            Log.d(TAG, "✅ SYNC FILE RECEIVED - Fallback to selected folder succeeded")
+                        }
+                    }
+                    
+                    // Fallback 2: Create a new sync folder if all else fails
+                    if (!success) {
+                        Log.d(TAG, "🔄 SYNC FILE RECEIVED - Attempting to create new sync folder")
+                        val newSyncFolderUri = fileManager.createFolderInDocuments("SyncReceived_${System.currentTimeMillis()}")
+                        if (newSyncFolderUri != null) {
+                            success = fileManager.writeFileToSyncFolder(newSyncFolderUri, fileName, fileBytes)
+                            if (success) {
+                                targetUri = newSyncFolderUri
+                                Log.d(TAG, "✅ SYNC FILE RECEIVED - New sync folder creation succeeded")
+                            }
+                        }
+                    }
+                    
+                    // Fallback 3: Last resort - save to app's external files directory
+                    if (!success) {
+                        Log.d(TAG, "🔄 SYNC FILE RECEIVED - Last resort: saving to external files directory")
+                        try {
+                            val externalDir = getExternalFilesDir("SyncReceived")
+                            if (externalDir != null) {
+                                externalDir.mkdirs()
+                                val targetFile = File(externalDir, fileName)
+                                targetFile.writeBytes(fileBytes)
+                                success = true
+                                Log.d(TAG, "✅ SYNC FILE RECEIVED - External files directory save succeeded: ${targetFile.absolutePath}")
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "❌ SYNC FILE RECEIVED - External files directory save failed", e)
+                        }
+                    }
+                }
+                
+                if (success) {
+                    Log.d(TAG, "✅ SYNC FILE RECEIVED - File successfully written: $fileName")
+                    runOnUiThread {
+                        Toast.makeText(this@MainActivity, "Sync file received: $fileName", Toast.LENGTH_SHORT).show()
+                        // Refresh file list if this is the current folder
+                        if (fileManager.selectedFolderUri == targetUri) {
+                            Log.d(TAG, "🔄 SYNC FILE RECEIVED - Refreshing file list for current folder")
+                            loadFilesFromSelectedFolder()
+                        } else {
+                            Log.d(TAG, "🔄 SYNC FILE RECEIVED - Not refreshing file list (different folder)")
+                            Log.d(TAG, "🔄 SYNC FILE RECEIVED - Current folder: ${fileManager.selectedFolderUri}")
+                            Log.d(TAG, "🔄 SYNC FILE RECEIVED - Target folder: $targetUri")
+                        }
+                    }
+                } else {
+                    Log.e(TAG, "❌ SYNC FILE RECEIVED - All save attempts failed for file: $fileName")
+                    runOnUiThread {
+                        Toast.makeText(this@MainActivity, "Failed to save sync file: $fileName - Check storage permissions", Toast.LENGTH_LONG).show()
+                    }
+                }
+                
+                // Clean up temp file
+                try {
+                    val tempFile = java.io.File(tempFilePath)
+                    if (tempFile.exists()) {
+                        val deleted = tempFile.delete()
+                        Log.d(TAG, "🔄 SYNC FILE RECEIVED - Temp file cleanup: $deleted for $tempFilePath")
+                    } else {
+                        Log.d(TAG, "🔄 SYNC FILE RECEIVED - Temp file does not exist: $tempFilePath")
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "❌ SYNC FILE RECEIVED - Failed to delete temp file: $tempFilePath", e)
+                }
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ SYNC FILE RECEIVED - Unexpected error processing sync file", e)
+                runOnUiThread {
+                    Toast.makeText(this@MainActivity, "Error processing sync file: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }override fun onSyncRequestReceived(requestJson: String, senderAddress: String) {
         Log.d(TAG, "🚨 SYNC REQUEST RECEIVED IN MAINACTIVITY 🚨")
         Log.d(TAG, "From: $senderAddress")
         Log.d(TAG, "Request JSON: $requestJson")
         
-        runOnUiThread {
-            Toast.makeText(this, "🔄 Sync request received from $senderAddress", Toast.LENGTH_LONG).show()
+        // Parse the sync request
+        val request = syncManager.parseSyncRequestFromJson(requestJson)
+        if (request != null) {
+            runOnUiThread {
+                // Show accept/reject dialog
+                showSyncRequestDialog(request)
+            }
+            
+            // Also handle it in sync manager for logging
+            syncManager.handleSyncRequest(requestJson, senderAddress)
+        } else {
+            Log.e(TAG, "Failed to parse sync request JSON")
+            runOnUiThread {
+                Toast.makeText(this, "Invalid sync request received", Toast.LENGTH_SHORT).show()
+            }
         }
-        
-        syncManager.handleSyncRequest(requestJson, senderAddress)
     }
 
     override fun onSyncResponseReceived(response: String, senderAddress: String) {
@@ -661,6 +787,40 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
     override fun onSyncProgressReceived(progressJson: String, senderAddress: String) {
         Log.d(TAG, "Sync progress received from $senderAddress")
         syncManager.handleSyncProgress(progressJson, senderAddress)
+    }
+
+    override fun onSyncStartTransferReceived(message: String, senderAddress: String) {
+        Log.d(TAG, "🚀 SYNC START TRANSFER RECEIVED: $message")
+        // Parse the message: "SYNC_START_TRANSFER:folderId:folderName"
+        val parts = message.split(":")
+        if (parts.size >= 3) {
+            val folderId = parts[1]
+            val folderName = parts[2]
+            Log.d(TAG, "Starting sync transfer for folder: $folderName (ID: $folderId)")
+            
+            // Handle the start transfer request in SyncManager
+            syncManager.handleSyncStartTransfer(folderId, folderName, senderAddress)
+        } else {
+            Log.e(TAG, "Invalid SYNC_START_TRANSFER message format: $message")
+        }
+    }
+
+    override fun onSyncRequestFilesListReceived(folderPath: String, senderAddress: String) {
+        Log.d(TAG, "📋 SYNC REQUEST FILES LIST RECEIVED for path: $folderPath")
+        // Handle the files list request in SyncManager
+        syncManager.handleSyncRequestFilesList(folderPath, senderAddress)
+    }
+
+    override fun onSyncRequestFileReceived(message: String, senderAddress: String) {
+        Log.d(TAG, "📁 SYNC REQUEST FILE RECEIVED: $message")
+        // Parse the message and handle file request
+        syncManager.handleSyncRequestFile(message, senderAddress)
+    }
+
+    override fun onSyncFilesListResponseReceived(filesListJson: String, senderAddress: String) {
+        Log.d(TAG, "📋 SYNC FILES LIST RESPONSE RECEIVED")
+        // Handle the files list response in SyncManager
+        syncManager.handleSyncFilesListResponse(filesListJson, senderAddress)
     }
 
     override fun onError(error: String) {
