@@ -1,3 +1,36 @@
 <resources>
-    <string name="app_name">syncy-p2p</string>
+    <string name="app_name">Syncy P2P</string>
+    <string name="wifi_direct_status">Wi-Fi Direct Status</string>
+    <string name="available_peers">Available Peers</string>
+    <string name="send_message">Send Message</string>
+    <string name="enter_message">Enter message...</string>
+    <string name="device_name">Device Name</string>
+    <string name="connect">Connect</string>
+    <string name="disconnect">Disconnect</string>
+    <string name="discover">Discover</string>
+    <string name="create_group">Create Group</string>
+    <string name="initialize">Initialize</string>
+    <string name="send_file">Send File</string>
+    <string name="not_initialized">Not initialized</string>
+    <string name="device_unknown">Device: Unknown</string>
+    <string name="disconnecting">Disconnecting...</string>
+    <string name="connect_success">Connected successfully</string>
+    <string name="disconnect_success">Disconnected successfully</string>
+    <string name="disconnect_failed">Failed to disconnect</string>
+    <string name="status_available">Available</string>
+    <string name="status_connected">Connected</string>
+    <string name="status_invited">Invited</string>
+    <string name="status_unavailable">Unavailable</string>
+    <string name="status_connecting">Connecting...</string>
+    <string name="select_folder">Select Folder</string>
+    <string name="file_browser">File Browser</string>
+    <string name="no_folder_selected">No folder selected</string>
+    <string name="confirm_disconnect">Confirm Disconnect</string>
+    <string name="disconnect_message">Are you sure you want to disconnect from this device?</string>
+    <string name="cancel">Cancel</string>
+    <string name="ok">OK</string>
+    <string name="send">Send</string>
+    <string name="folder_access_required">Folder access is required to browse files</string>
+    <string name="folder_selected">Folder selected: %1$s</string>
+    <string name="file_transfer_progress">Transferring: %1$s (%2$d%%)</string>
 </resources>
