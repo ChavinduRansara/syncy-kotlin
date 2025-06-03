@@ -10,13 +10,11 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:padding="8dp"
-        android:background="@android:color/background_dark">
-
-        <TextView
+        android:background="@android:color/background_dark">        <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Time"
-            android:textSize="11sp"
+            android:textSize="12sp"
             android:textStyle="bold"
             android:textColor="@android:color/white"
             android:fontFamily="monospace"
@@ -27,7 +25,7 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:text="Level"
-            android:textSize="11sp"
+            android:textSize="12sp"
             android:textStyle="bold"
             android:textColor="@android:color/white"
             android:fontFamily="monospace"
@@ -39,7 +37,7 @@
             android:layout_weight="1"
             android:layout_marginStart="8dp"
             android:text="Message"
-            android:textSize="11sp"
+            android:textSize="12sp"
             android:textStyle="bold"
             android:textColor="@android:color/white" />
 

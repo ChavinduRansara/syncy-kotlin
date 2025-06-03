@@ -1,117 +1,111 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="8dp"
-    app:cardCornerRadius="8dp"
-    app:cardElevation="4dp">
+    app:cardCornerRadius="12dp"
+    app:cardElevation="2dp"
+    app:cardBackgroundColor="@color/md_theme_surface_container"
+    app:strokeWidth="1dp"
+    app:strokeColor="@color/md_theme_outline_variant">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:padding="20dp">
 
         <!-- Header with folder name and status -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <TextView
+            android:gravity="center_vertical">            <TextView
                 android:id="@+id/tvFolderName"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="Folder Name"
+                android:textAppearance="?attr/textAppearanceTitleMedium"
                 android:textSize="16sp"
-                android:textStyle="bold"
+                android:textColor="@color/md_theme_on_surface"
                 android:maxLines="1"
-                android:ellipsize="end" />
-
-            <TextView
+                android:ellipsize="end" /><com.google.android.material.chip.Chip
                 android:id="@+id/tvStatus"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Synced"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:background="@drawable/bg_status_pill"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="4dp" />
+                android:textAppearance="?attr/textAppearanceLabelSmall"
+                app:chipBackgroundColor="@color/md_theme_tertiary_container"
+                app:chipStrokeWidth="0dp"
+                style="@style/Widget.Material3.Chip.Assist" />
 
-        </LinearLayout>
-
-        <!-- Local path -->
+        </LinearLayout>        <!-- Local path -->
         <TextView
             android:id="@+id/tvLocalPath"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="8dp"
             android:text="Local path"
-            android:textSize="12sp"
-            android:textColor="@android:color/darker_gray"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textSize="14sp"
+            android:textColor="@color/md_theme_on_surface_variant"
             android:maxLines="1"
-            android:ellipsize="middle" />
-
-        <!-- Remote device -->
+            android:ellipsize="middle" />        <!-- Remote device -->
         <TextView
             android:id="@+id/tvRemoteDevice"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
+            android:layout_marginTop="4dp"
             android:text="Synced with: Device Name"
-            android:textSize="12sp"
-            android:textColor="@android:color/darker_gray" />
-
-        <!-- File info -->
-        <TextView
-            android:id="@+id/tvFileInfo"
-            android:layout_width="match_parent"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textSize="14sp"
+            android:textColor="@color/md_theme_on_surface_variant" /><!-- File info -->        <TextView
+            android:id="@+id/tvFileInfo"            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="12dp"
             android:text="0 files • 0 MB"
-            android:textSize="14sp" />
-
-        <!-- Last sync time -->
+            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textSize="14sp"
+            android:textColor="@color/md_theme_on_surface" /><!-- Last sync time -->
         <TextView
             android:id="@+id/tvLastSync"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:text="Last sync: Never"
-            android:textSize="12sp"
-            android:textColor="@android:color/darker_gray" />
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textSize="14sp"
+            android:textColor="@color/md_theme_on_surface_variant" />
 
         <!-- Action buttons -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="16dp"
             android:orientation="horizontal"
-            android:gravity="end">
-
-            <Button
+            android:gravity="end">            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnRemove"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_height="40dp"
                 android:text="Remove"
-                android:textSize="12sp"
+                android:textAppearance="?attr/textAppearanceLabelMedium"
+                android:textSize="14sp"
                 android:layout_marginEnd="8dp"
                 style="@style/Widget.Material3.Button.TextButton" />
 
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnResync"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_height="40dp"
                 android:text="Resync"
-                android:textSize="12sp"
+                android:textAppearance="?attr/textAppearanceLabelMedium"
+                android:textSize="14sp"
                 style="@style/Widget.Material3.Button.OutlinedButton" />
 
         </LinearLayout>
 
     </LinearLayout>
 
-</androidx.cardview.widget.CardView>
+</com.google.android.material.card.MaterialCardView>

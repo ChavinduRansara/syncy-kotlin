@@ -3,15 +3,13 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="16dp">
-
-    <!-- File Information -->
+    android:padding="16dp">    <!-- File Information -->
     <TextView
         android:id="@+id/tvFileName"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="filename.txt"
-        android:textSize="18sp"
+        android:textSize="20sp"
         android:textStyle="bold"
         android:maxLines="2"
         android:ellipsize="middle" />

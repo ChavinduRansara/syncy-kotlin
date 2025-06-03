@@ -1,73 +1,73 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="4dp"
-    android:elevation="2dp"
-    app:cardCornerRadius="8dp">
+    android:layout_margin="8dp"
+    app:cardElevation="1dp"
+    app:cardCornerRadius="12dp"
+    app:cardBackgroundColor="@color/md_theme_surface_container"
+    app:strokeWidth="1dp"
+    app:strokeColor="@color/md_theme_outline_variant">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="12dp"
-        android:gravity="center_vertical">
-
-        <ImageView
+        android:padding="16dp"
+        android:gravity="center_vertical">        <ImageView
             android:id="@+id/ivFileIcon"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:layout_marginEnd="12dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="16dp"
             android:src="@drawable/ic_file"
-            android:contentDescription="File type icon" />
+            android:background="@color/md_theme_secondary_container"
+            android:padding="8dp"
+            android:contentDescription="File type icon"
+            app:tint="@color/md_theme_on_secondary_container" />
 
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:orientation="vertical">
-
-            <TextView
+            android:orientation="vertical">            <TextView
                 android:id="@+id/tvFileName"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="File Name"
+                android:textAppearance="?attr/textAppearanceTitleMedium"
                 android:textSize="16sp"
-                android:textStyle="bold"
+                android:textColor="@color/md_theme_on_surface"
                 android:maxLines="1"
-                android:ellipsize="end" />
-
-            <TextView
+                android:ellipsize="end" />            <TextView
                 android:id="@+id/tvFileSize"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="1.2 MB"
-                android:textSize="12sp"
-                android:textColor="@android:color/darker_gray"
-                android:layout_marginTop="2dp" />
-
-            <TextView
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textSize="14sp"
+                android:textColor="@color/md_theme_on_surface_variant"
+                android:layout_marginTop="4dp" />            <TextView
                 android:id="@+id/tvLastModified"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Jan 01, 2024 12:00"
-                android:textSize="10sp"
-                android:textColor="@android:color/darker_gray"
+                android:textAppearance="?attr/textAppearanceLabelSmall"
+                android:textSize="12sp"
+                android:textColor="@color/md_theme_on_surface_variant"
                 android:layout_marginTop="2dp" />
 
-        </LinearLayout>
-
-        <Button
+        </LinearLayout>        <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSendFile"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_height="40dp"
             android:text="Send"
-            android:textSize="12sp"
-            android:minWidth="64dp"
-            android:layout_marginStart="8dp"
+            android:textAppearance="?attr/textAppearanceLabelMedium"
+            android:textSize="14sp"
+            android:minWidth="72dp"
+            android:layout_marginStart="12dp"
             style="@style/Widget.Material3.Button.OutlinedButton" />
 
     </LinearLayout>
 
-</androidx.cardview.widget.CardView>
+</com.google.android.material.card.MaterialCardView>

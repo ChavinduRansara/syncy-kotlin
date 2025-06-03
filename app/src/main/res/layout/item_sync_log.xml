@@ -4,39 +4,33 @@
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:padding="8dp"
-    android:gravity="center_vertical">
-
-    <!-- Timestamp -->
+    android:gravity="center_vertical">    <!-- Timestamp -->
     <TextView
         android:id="@+id/tvTimestamp"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="12:34:56"
-        android:textSize="11sp"
+        android:textSize="12sp"
         android:textColor="@android:color/darker_gray"
         android:fontFamily="monospace"
-        android:minWidth="60dp" />
-
-    <!-- Level indicator -->
+        android:minWidth="60dp" />    <!-- Level indicator -->
     <TextView
         android:id="@+id/tvLevel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
         android:text="INFO"
-        android:textSize="10sp"
+        android:textSize="12sp"
         android:textStyle="bold"
         android:fontFamily="monospace"
-        android:minWidth="50dp" />
-
-    <!-- Folder name (optional) -->
+        android:minWidth="50dp" />    <!-- Folder name (optional) -->
     <TextView
         android:id="@+id/tvFolderName"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
         android:text="[folder]"
-        android:textSize="11sp"
+        android:textSize="12sp"
         android:textColor="@android:color/darker_gray"
         android:fontFamily="monospace"
         android:visibility="gone" />

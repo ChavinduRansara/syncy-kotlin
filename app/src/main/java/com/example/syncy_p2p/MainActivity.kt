@@ -389,10 +389,9 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
                 onError("Failed to disconnect from ${device.deviceName}: ${error.message}")
             }
         }
-    }
-
-    private fun sendMessage() {
+    }    private fun sendMessage() {
         val message = binding.etMessage.text.toString().trim()
+        
         if (message.isEmpty()) {
             Toast.makeText(this, "Please enter a message", Toast.LENGTH_SHORT).show()
             return
@@ -400,7 +399,7 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
 
         val result = wifiDirectManager.sendMessage(message)
         result.onSuccess {
-            binding.etMessage.text.clear()
+            binding.etMessage.text?.clear()
             Toast.makeText(this, "Message sent", Toast.LENGTH_SHORT).show()
         }.onFailure { error ->
             onError("Failed to send message: ${error.message}")

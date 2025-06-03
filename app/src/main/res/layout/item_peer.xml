@@ -1,73 +1,80 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="4dp"
-    android:elevation="2dp">
+    android:layout_margin="8dp"
+    app:cardElevation="2dp"
+    app:cardCornerRadius="12dp"
+    app:cardBackgroundColor="@color/md_theme_surface_container"
+    app:strokeWidth="1dp"
+    app:strokeColor="@color/md_theme_outline_variant">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="12dp">
+        android:padding="16dp">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <TextView
+            android:orientation="horizontal"
+            android:gravity="center_vertical">            <TextView
                 android:id="@+id/tvDeviceName"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="Device Name"
+                android:textAppearance="?attr/textAppearanceTitleMedium"
                 android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <TextView
+                android:textColor="@color/md_theme_on_surface" /><com.google.android.material.chip.Chip
                 android:id="@+id/tvStatus"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Available"
-                android:textSize="12sp"
-                android:textColor="@android:color/holo_green_dark" />
+                android:textAppearance="?attr/textAppearanceLabelSmall"
+                app:chipBackgroundColor="@color/md_theme_secondary_container"
+                app:chipStrokeWidth="0dp"
+                style="@style/Widget.Material3.Chip.Assist" />
 
         </LinearLayout>        <TextView
             android:id="@+id/tvDeviceAddress"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="8dp"
             android:text="00:00:00:00:00:00"
-            android:textSize="12sp"
-            android:textColor="@android:color/darker_gray" />
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textSize="14sp"
+            android:textColor="@color/md_theme_on_surface_variant" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="12dp"
             android:orientation="horizontal"
-            android:gravity="end">
-
-            <Button
+            android:gravity="end">            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnDisconnect"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_height="40dp"
                 android:layout_marginEnd="8dp"
                 android:text="Disconnect"
-                android:textSize="12sp"
+                android:textAppearance="?attr/textAppearanceLabelMedium"
+                android:textSize="14sp"
                 android:visibility="gone"
                 style="@style/Widget.Material3.Button.OutlinedButton" />
 
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnConnect"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_height="40dp"
                 android:text="Connect"
-                android:textSize="12sp" />
+                android:textAppearance="?attr/textAppearanceLabelMedium"
+                android:textSize="14sp"
+                style="@style/Widget.Material3.Button" />
 
         </LinearLayout>
 
     </LinearLayout>
 
-</androidx.cardview.widget.CardView>
+</com.google.android.material.card.MaterialCardView>

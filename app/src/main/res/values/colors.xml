@@ -1,5 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Material Design 3 Color Palette -->
+    <!-- Primary Colors -->
+    <color name="md_theme_primary">#1976D2</color>
+    <color name="md_theme_on_primary">#FFFFFF</color>
+    <color name="md_theme_primary_container">#D3E4FD</color>
+    <color name="md_theme_on_primary_container">#001D36</color>
+    
+    <!-- Secondary Colors -->
+    <color name="md_theme_secondary">#0D47A1</color>
+    <color name="md_theme_on_secondary">#FFFFFF</color>
+    <color name="md_theme_secondary_container">#D0E7FF</color>
+    <color name="md_theme_on_secondary_container">#001C3B</color>
+    
+    <!-- Tertiary Colors -->
+    <color name="md_theme_tertiary">#1565C0</color>
+    <color name="md_theme_on_tertiary">#FFFFFF</color>
+    <color name="md_theme_tertiary_container">#D4E3FF</color>
+    <color name="md_theme_on_tertiary_container">#001B3E</color>
+      <!-- Surface Colors -->
+    <color name="md_theme_surface">#FEFBFF</color>
+    <color name="md_theme_on_surface">#1C1B1F</color>
+    <color name="md_theme_surface_variant">#E2E2E9</color>
+    <color name="md_theme_on_surface_variant">#45464E</color>
+    <color name="md_theme_surface_container">#F4F2F7</color>
+    <color name="md_theme_surface_container_low">#F9F7FC</color>
+    <color name="md_theme_surface_container_high">#EDE8F3</color>
+    
+    <!-- Background Colors -->
+    <color name="md_theme_background">#FEFBFF</color>
+    <color name="md_theme_on_background">#1C1B1F</color>
+    
+    <!-- Error Colors -->
+    <color name="md_theme_error">#BA1A1A</color>
+    <color name="md_theme_on_error">#FFFFFF</color>
+    <color name="md_theme_error_container">#FFDAD6</color>
+    <color name="md_theme_on_error_container">#410002</color>
+    
+    <!-- Outline Colors -->
+    <color name="md_theme_outline">#767680</color>
+    <color name="md_theme_outline_variant">#C6C5D0</color>
+    
+    <!-- Sync Status Colors -->
+    <color name="sync_connected">#2E7D32</color>
+    <color name="sync_syncing">#FF9800</color>
+    <color name="sync_error">#D32F2F</color>
+    <color name="sync_pending">#1976D2</color>
+    
+    <!-- Legacy colors for compatibility -->
     <color name="purple_200">#FFBB86FC</color>
     <color name="purple_500">#FF6200EE</color>
     <color name="purple_700">#FF3700B3</color>

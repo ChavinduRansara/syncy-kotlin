@@ -39,14 +39,12 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:orientation="vertical">
-
-        <!-- Section Header -->
+        android:orientation="vertical">        <!-- Section Header -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Synced Folders"
-            android:textSize="18sp"
+            android:textSize="20sp"
             android:textStyle="bold"
             android:padding="16dp"
             android:background="@android:color/background_light" />
