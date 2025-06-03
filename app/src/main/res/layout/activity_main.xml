@@ -94,17 +94,8 @@
             android:enabled="false" />
 
     </LinearLayout>
-
-    <!-- Sync Management Button -->
-    <Button
-        android:id="@+id/btnSyncManagement"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp"
-        android:text="Sync Management"
-        android:drawableStart="@android:drawable/ic_menu_manage"
-        android:drawablePadding="8dp"
-        style="@style/Widget.Material3.Button.OutlinedButton" /><!-- Available Peers -->
+    
+    <!-- Available Peers -->
     <androidx.cardview.widget.CardView
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -205,7 +196,20 @@
 
         </LinearLayout>
 
-    </androidx.cardview.widget.CardView>    <!-- Message Section -->
+    </androidx.cardview.widget.CardView>    
+
+    <!-- Sync Management Button -->
+    <Button
+        android:id="@+id/btnSyncManagement"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:text="Sync Management"
+        android:drawableStart="@android:drawable/ic_menu_manage"
+        android:drawablePadding="8dp"
+        style="@style/Widget.Material3.Button.OutlinedButton" />
+    
+    <!-- Message Section -->
     <androidx.cardview.widget.CardView
         android:layout_width="match_parent"
         android:layout_height="0dp"
