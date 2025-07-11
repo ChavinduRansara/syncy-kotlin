@@ -77,7 +77,7 @@ class FileManager(private val context: Context) {
         }
         
         try {
-            Log.d(TAG, "🔄 GET FILES - Getting files from folder: $folderUri")
+            Log.d(TAG, "GET FILES - Getting files from folder: $folderUri")
             
             // Ensure we have persistent permissions
             try {
@@ -92,13 +92,13 @@ class FileManager(private val context: Context) {
             
             val documentFile = DocumentFile.fromTreeUri(context, folderUri)
             if (documentFile == null || !documentFile.exists() || !documentFile.isDirectory) {
-                Log.w(TAG, "🔄 GET FILES - Document file invalid: exists=${documentFile?.exists()}, isDir=${documentFile?.isDirectory}")
+                Log.w(TAG, "GET FILES - Document file invalid: exists=${documentFile?.exists()}, isDir=${documentFile?.isDirectory}")
                 return@withContext emptyList()
             }
             
             val files = mutableListOf<FileItem>()
             val childFiles = documentFile.listFiles()
-            Log.d(TAG, "🔄 GET FILES - Found ${childFiles.size} child files")
+            Log.d(TAG, "GET FILES - Found ${childFiles.size} child files")
             
             childFiles.forEach { file ->
                 try {
@@ -111,18 +111,18 @@ class FileManager(private val context: Context) {
                         mimeType = file.type
                     )
                     files.add(fileItem)
-                    Log.v(TAG, "🔄 GET FILES - Added file: ${fileItem.name} (${fileItem.size} bytes)")
+                    Log.v(TAG, "GET FILES - Added file: ${fileItem.name} (${fileItem.size} bytes)")
                 } catch (e: Exception) {
-                    Log.w(TAG, "🔄 GET FILES - Skipping file due to error: ${e.message}")
+                    Log.w(TAG, "GET FILES - Skipping file due to error: ${e.message}")
                 }
             }
             
-            Log.d(TAG, "🔄 GET FILES - Successfully loaded ${files.size} files")
+            Log.d(TAG, "GET FILES - Successfully loaded ${files.size} files")
             
             // Sort: directories first, then files, both alphabetically
             files.sortedWith(compareBy<FileItem> { !it.isDirectory }.thenBy { it.name.lowercase() })
         } catch (e: Exception) {
-            Log.e(TAG, "❌ GET FILES - Error getting files from folder", e)
+            Log.e(TAG, "GET FILES - Error getting files from folder", e)
             emptyList()
         }
     }
@@ -235,8 +235,8 @@ class FileManager(private val context: Context) {
      */    suspend fun writeFileToSyncFolder(syncFolderUri: Uri, fileName: String, fileData: ByteArray): Boolean {
         return try {
             withContext(Dispatchers.IO) {
-                Log.d(TAG, "🔄 WRITE FILE TO SYNC - Starting writeFileToSyncFolder for: $fileName (${fileData.size} bytes)")
-                Log.d(TAG, "🔄 WRITE FILE TO SYNC - Sync folder URI: $syncFolderUri")
+                Log.d(TAG, "WRITE FILE TO SYNC - Starting writeFileToSyncFolder for: $fileName (${fileData.size} bytes)")
+                Log.d(TAG, "WRITE FILE TO SYNC - Sync folder URI: $syncFolderUri")
                 
                 // CRITICAL FIX 1: Ensure we have persistent permissions for the URI
                 try {
@@ -245,25 +245,25 @@ class FileManager(private val context: Context) {
                         android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
                         android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                     )
-                    Log.d(TAG, "✅ WRITE FILE TO SYNC - Persistent permissions ensured")
+                    Log.d(TAG, "WRITE FILE TO SYNC - Persistent permissions ensured")
                 } catch (e: Exception) {
-                    Log.w(TAG, "⚠️ WRITE FILE TO SYNC - Could not take persistent permissions (may already exist): ${e.message}")
+                    Log.w(TAG, "WRITE FILE TO SYNC - Could not take persistent permissions (may already exist): ${e.message}")
                 }
                 
                 val syncFolder = DocumentFile.fromTreeUri(context, syncFolderUri)
-                Log.d(TAG, "🔄 WRITE FILE TO SYNC - Sync folder exists: ${syncFolder?.exists()}, canWrite: ${syncFolder?.canWrite()}")
+                Log.d(TAG, "WRITE FILE TO SYNC - Sync folder exists: ${syncFolder?.exists()}, canWrite: ${syncFolder?.canWrite()}")
                 
                 if (syncFolder != null && syncFolder.exists() && syncFolder.canWrite()) {
                     // CRITICAL FIX 2: Clean up filename to avoid issues with special characters
                     val cleanFileName = fileName.replace(Regex("[^a-zA-Z0-9._-]"), "_")
-                    Log.d(TAG, "🔄 WRITE FILE TO SYNC - Original filename: '$fileName', Clean filename: '$cleanFileName'")
+                    Log.d(TAG, "WRITE FILE TO SYNC - Original filename: '$fileName', Clean filename: '$cleanFileName'")
                     
                     // Check if file already exists (using clean filename)
                     val existingFile = syncFolder.findFile(cleanFileName)
-                    Log.d(TAG, "🔄 WRITE FILE TO SYNC - Existing file found: ${existingFile != null}")
+                    Log.d(TAG, "WRITE FILE TO SYNC - Existing file found: ${existingFile != null}")
                     
                     val targetFile = if (existingFile != null) {
-                        Log.d(TAG, "🔄 WRITE FILE TO SYNC - Using existing file: ${existingFile.uri}")
+                        Log.d(TAG, "WRITE FILE TO SYNC - Using existing file: ${existingFile.uri}")
                         existingFile
                     } else {
                         // Create new file
@@ -279,21 +279,21 @@ class FileManager(private val context: Context) {
                             "zip" -> "application/zip"
                             else -> "application/octet-stream"
                         }
-                        Log.d(TAG, "🔄 WRITE FILE TO SYNC - Creating new file with mimeType: $mimeType")
+                        Log.d(TAG, "WRITE FILE TO SYNC - Creating new file with mimeType: $mimeType")
                         
                         // CRITICAL FIX 3: Retry file creation with fallback
                         var newFile = syncFolder.createFile(mimeType, cleanFileName)
                         if (newFile == null) {
-                            Log.w(TAG, "⚠️ WRITE FILE TO SYNC - First file creation failed, trying with generic mime type")
+                            Log.w(TAG, "WRITE FILE TO SYNC - First file creation failed, trying with generic mime type")
                             newFile = syncFolder.createFile("application/octet-stream", cleanFileName)
                         }
                         
-                        Log.d(TAG, "🔄 WRITE FILE TO SYNC - New file created: ${newFile?.uri}")
+                        Log.d(TAG, "WRITE FILE TO SYNC - New file created: ${newFile?.uri}")
                         newFile
                     }
                     
                     if (targetFile != null) {
-                        Log.d(TAG, "🔄 WRITE FILE TO SYNC - Writing to file: ${targetFile.uri}")
+                        Log.d(TAG, "WRITE FILE TO SYNC - Writing to file: ${targetFile.uri}")
                         
                         // CRITICAL FIX 4: Enhanced file writing with retry mechanism
                         var bytesWritten = 0
@@ -302,7 +302,7 @@ class FileManager(private val context: Context) {
                         
                         while (!writeSuccess && attemptCount < 3) {
                             attemptCount++
-                            Log.d(TAG, "🔄 WRITE FILE TO SYNC - Write attempt $attemptCount")
+                            Log.d(TAG, "WRITE FILE TO SYNC - Write attempt $attemptCount")
                             
                             try {
                                 context.contentResolver.openOutputStream(targetFile.uri, "wt")?.use { outputStream ->
@@ -316,15 +316,15 @@ class FileManager(private val context: Context) {
                                     
                                     bytesWritten = fileData.size
                                     writeSuccess = true
-                                    Log.d(TAG, "✅ WRITE FILE TO SYNC - Write successful on attempt $attemptCount")
+                                    Log.d(TAG, "WRITE FILE TO SYNC - Write successful on attempt $attemptCount")
                                 }
                                 
                                 if (!writeSuccess) {
-                                    Log.w(TAG, "⚠️ WRITE FILE TO SYNC - Failed to open output stream on attempt $attemptCount")
+                                    Log.w(TAG, "WRITE FILE TO SYNC - Failed to open output stream on attempt $attemptCount")
                                     Thread.sleep(100) // Brief delay before retry
                                 }
                             } catch (e: Exception) {
-                                Log.w(TAG, "⚠️ WRITE FILE TO SYNC - Write attempt $attemptCount failed: ${e.message}")
+                                Log.w(TAG, "WRITE FILE TO SYNC - Write attempt $attemptCount failed: ${e.message}")
                                 if (attemptCount < 3) {
                                     Thread.sleep(200) // Brief delay before retry
                                 }
@@ -332,44 +332,44 @@ class FileManager(private val context: Context) {
                         }
                         
                         if (writeSuccess) {
-                            Log.d(TAG, "✅ WRITE FILE TO SYNC - Successfully wrote $bytesWritten bytes to: $cleanFileName")
+                            Log.d(TAG, "WRITE FILE TO SYNC - Successfully wrote $bytesWritten bytes to: $cleanFileName")
                             
                             // CRITICAL FIX 5: Enhanced verification with retry
                             Thread.sleep(100) // Give filesystem time to update
                             val verifyFile = DocumentFile.fromSingleUri(context, targetFile.uri)
                             val actualSize = verifyFile?.length() ?: 0
-                            Log.d(TAG, "✅ WRITE FILE TO SYNC - File verification - Expected: ${fileData.size}, Actual: $actualSize")
+                            Log.d(TAG, "WRITE FILE TO SYNC - File verification - Expected: ${fileData.size}, Actual: $actualSize")
                             
                             if (actualSize > 0 && actualSize <= fileData.size) {
-                                Log.d(TAG, "✅ WRITE FILE TO SYNC - File verification PASSED")
+                                Log.d(TAG, "WRITE FILE TO SYNC - File verification PASSED")
                                 true
                             } else {
-                                Log.e(TAG, "❌ WRITE FILE TO SYNC - File verification FAILED - size mismatch")
+                                Log.e(TAG, "WRITE FILE TO SYNC - File verification FAILED - size mismatch")
                                 false
                             }
                         } else {
-                            Log.e(TAG, "❌ WRITE FILE TO SYNC - All write attempts failed for: $cleanFileName")
+                            Log.e(TAG, "WRITE FILE TO SYNC - All write attempts failed for: $cleanFileName")
                             false
                         }
                     } else {
-                        Log.e(TAG, "❌ WRITE FILE TO SYNC - Failed to create target file: $cleanFileName")
+                        Log.e(TAG, "WRITE FILE TO SYNC - Failed to create target file: $cleanFileName")
                         false
                     }
                 } else {
-                    Log.e(TAG, "❌ WRITE FILE TO SYNC - Sync folder not accessible or writable: $syncFolderUri")
-                    Log.e(TAG, "❌ WRITE FILE TO SYNC - Sync folder null: ${syncFolder == null}")
+                    Log.e(TAG, "WRITE FILE TO SYNC - Sync folder not accessible or writable: $syncFolderUri")
+                    Log.e(TAG, "WRITE FILE TO SYNC - Sync folder null: ${syncFolder == null}")
                     if (syncFolder != null) {
-                        Log.e(TAG, "❌ WRITE FILE TO SYNC - Sync folder exists: ${syncFolder.exists()}")
-                        Log.e(TAG, "❌ WRITE FILE TO SYNC - Sync folder canWrite: ${syncFolder.canWrite()}")
-                        Log.e(TAG, "❌ WRITE FILE TO SYNC - Sync folder name: ${syncFolder.name}")
-                        Log.e(TAG, "❌ WRITE FILE TO SYNC - Sync folder URI path: ${syncFolder.uri}")
+                        Log.e(TAG, "WRITE FILE TO SYNC - Sync folder exists: ${syncFolder.exists()}")
+                        Log.e(TAG, "WRITE FILE TO SYNC - Sync folder canWrite: ${syncFolder.canWrite()}")
+                        Log.e(TAG, "WRITE FILE TO SYNC - Sync folder name: ${syncFolder.name}")
+                        Log.e(TAG, "WRITE FILE TO SYNC - Sync folder URI path: ${syncFolder.uri}")
                     }
                     false
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "❌ WRITE FILE TO SYNC - Exception occurred", e)
-            Log.e(TAG, "❌ WRITE FILE TO SYNC - Exception details: ${e.stackTraceToString()}")
+            Log.e(TAG, "WRITE FILE TO SYNC - Exception occurred", e)
+            Log.e(TAG, "WRITE FILE TO SYNC - Exception details: ${e.stackTraceToString()}")
             false
         }
     }
@@ -378,7 +378,7 @@ class FileManager(private val context: Context) {
      * Force refresh folder contents by clearing any cached data
      */
     suspend fun refreshFolderContents(folderUri: Uri? = selectedFolderUri): List<FileItem> = withContext(Dispatchers.IO) {
-        Log.d(TAG, "🔄 REFRESH FOLDER - Force refreshing folder contents")
+        Log.d(TAG, "REFRESH FOLDER - Force refreshing folder contents")
         
         // Add a small delay to ensure filesystem consistency
         delay(100)
@@ -396,7 +396,7 @@ class FileManager(private val context: Context) {
         if (currentFolder != null) {
             val success = writeFileToSyncFolder(currentFolder, fileName, fileData)
             if (success) {
-                Log.d(TAG, "✅ WRITE FILE - Successfully wrote to current folder")
+                Log.d(TAG, "WRITE FILE - Successfully wrote to current folder")
                 return@withContext Pair(true, currentFolder)
             }
         }
@@ -406,12 +406,12 @@ class FileManager(private val context: Context) {
         if (syncFolderUri != null) {
             val success = writeFileToSyncFolder(syncFolderUri, fileName, fileData)
             if (success) {
-                Log.d(TAG, "✅ WRITE FILE - Successfully wrote to new sync folder")
+                Log.d(TAG, "WRITE FILE - Successfully wrote to new sync folder")
                 return@withContext Pair(true, syncFolderUri)
             }
         }
         
-        Log.e(TAG, "❌ WRITE FILE - All attempts failed")
+        Log.e(TAG, "WRITE FILE - All attempts failed")
         return@withContext Pair(false, null)
     }
 }

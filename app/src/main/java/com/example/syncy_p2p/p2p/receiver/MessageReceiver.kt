@@ -26,20 +26,20 @@ class MessageReceiver(
             return
         }
 
-        Log.d(TAG, "🚀 STARTING MESSAGE RECEIVER ON PORT ${Config.MESSAGE_PORT}")
+        Log.d(TAG, "STARTING MESSAGE RECEIVER ON PORT ${Config.MESSAGE_PORT}")
           receiverJob = CoroutineScope(Dispatchers.IO).launch {
             try {
                 isRunning = true
                 serverSocket = ServerSocket(Config.MESSAGE_PORT)
-                Log.d(TAG, "✅ MessageReceiver started successfully on port ${Config.MESSAGE_PORT}")
-                Log.d(TAG, "📡 Waiting for incoming connections...")
+                Log.d(TAG, "MessageReceiver started successfully on port ${Config.MESSAGE_PORT}")
+                Log.d(TAG, "Waiting for incoming connections...")
 
                 while (isRunning && !Thread.currentThread().isInterrupted()) {
                     try {
-                        Log.d(TAG, "⏳ Accepting new client connections...")
+                        Log.d(TAG, "Accepting new client connections...")
                         val clientSocket = serverSocket?.accept()
                         if (clientSocket != null && isRunning) {
-                            Log.d(TAG, "🔗 New client connected: ${clientSocket.inetAddress.hostAddress}")
+                            Log.d(TAG, "New client connected: ${clientSocket.inetAddress.hostAddress}")
                             launch { handleClient(clientSocket) }
                         }
                     } catch (e: IOException) {

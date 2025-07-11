@@ -95,7 +95,7 @@ class SyncManager(
             val syncId = UUID.randomUUID().toString()
             val folderPath = fileManager.getFolderDisplayPath(localFolderUri) ?: "Unknown"
             
-            Log.d(TAG, "🚀 Starting folder sync: $folderPath with mode: $mode")
+            Log.d(TAG, "Starting folder sync: $folderPath with mode: $mode")
             
             // Create sync session
             val syncSession = SyncSession(
@@ -125,30 +125,30 @@ class SyncManager(
             updateSyncStatus(session.id, SyncStatus.SCANNING)
             
             // CRITICAL FIX: Configure WiFiDirectManager for sync destination
-            Log.d(TAG, "🔧 SYNC SETUP - Configuring file receiver for sync destination")
+            Log.d(TAG, "SYNC SETUP - Configuring file receiver for sync destination")
             configureSyncDestination(session.localFolderUri)
             
             // Step 1: Scan local folder
             val localFiles = scanFolder(session.localFolderUri)
-            Log.d(TAG, "📁 Local folder scan complete: ${localFiles.size} files")
+            Log.d(TAG, "Local folder scan complete: ${localFiles.size} files")
             
             // Step 2: Request remote folder structure
             val remoteFiles = requestRemoteFolderStructure(session.targetDeviceAddress, session.localFolderUri)
-            Log.d(TAG, "📁 Remote folder scan complete: ${remoteFiles.size} files")
+            Log.d(TAG, "Remote folder scan complete: ${remoteFiles.size} files")
             
             // Step 3: Compare and generate sync operations
             val syncOperations = generateSyncOperations(localFiles, remoteFiles, session.mode)
-            Log.d(TAG, "🔄 Generated ${syncOperations.size} sync operations")
+            Log.d(TAG, "Generated ${syncOperations.size} sync operations")
             
             // Step 4: Execute sync operations
             updateSyncStatus(session.id, SyncStatus.SYNCING)
             executeSyncOperations(session, syncOperations)
             
             updateSyncStatus(session.id, SyncStatus.COMPLETED)
-            Log.d(TAG, "✅ Folder sync completed successfully")
+            Log.d(TAG, "Folder sync completed successfully")
             
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Folder sync failed", e)
+            Log.e(TAG, "Folder sync failed", e)
             updateSyncStatus(session.id, SyncStatus.FAILED)
         }
     }private suspend fun scanFolder(folderUri: Uri): List<FileMetadata> = withContext(Dispatchers.IO) {
@@ -429,7 +429,7 @@ class SyncManager(
             tempFile.setReadable(true, false)
             tempFile.setWritable(true, false)
             
-            Log.d(TAG, "📤 SEND FILE TO TARGET - Created temp file: ${tempFile.absolutePath}, size: ${tempFile.length()}, exists: ${tempFile.exists()}")
+            Log.d(TAG, "SEND FILE TO TARGET - Created temp file: ${tempFile.absolutePath}, size: ${tempFile.length()}, exists: ${tempFile.exists()}")
             
             wifiDirectManager.sendFile(tempFile.absolutePath, targetAddress)
             
@@ -440,21 +440,21 @@ class SyncManager(
                 try {
                     if (tempFile.exists()) {
                         val deleted = tempFile.delete()
-                        Log.d(TAG, "🧹 SEND FILE TO TARGET - Delayed cleanup of temp file: $deleted")
+                        Log.d(TAG, "SEND FILE TO TARGET - Delayed cleanup of temp file: $deleted")
                     }
                 } catch (e: Exception) {
-                    Log.w(TAG, "⚠️ SEND FILE TO TARGET - Failed to cleanup temp file: ${e.message}")
+                    Log.w(TAG, "SEND FILE TO TARGET - Failed to cleanup temp file: ${e.message}")
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "❌ SEND FILE TO TARGET - Error creating/sending temp file", e)
+            Log.e(TAG, "SEND FILE TO TARGET - Error creating/sending temp file", e)
             // Clean up on error
             try {
                 if (tempFile.exists()) {
                     tempFile.delete()
                 }
             } catch (cleanupError: Exception) {
-                Log.w(TAG, "⚠️ SEND FILE TO TARGET - Failed to cleanup temp file after error", cleanupError)
+                Log.w(TAG, "SEND FILE TO TARGET - Failed to cleanup temp file after error", cleanupError)
             }
             throw e
         }
@@ -496,20 +496,20 @@ class SyncManager(
                 throw result.exceptionOrNull() ?: Exception("Failed to send sync request")
             }
             
-            Log.d(TAG, "📤 Sent sync request with ID: $requestId to $targetAddress")
+            Log.d(TAG, "Sent sync request with ID: $requestId to $targetAddress")
             
             // Wait for response with timeout (30 seconds)
             return withTimeoutOrNull(30000) {
                 requestDeferred.await()
             } ?: run {
                 pendingRequests.remove(requestId)
-                Log.w(TAG, "⏰ Sync request timeout for ID: $requestId")
+                Log.w(TAG, "Sync request timeout for ID: $requestId")
                 "{\"files\": [], \"error\": \"Request timeout\"}"
             }
             
         } catch (e: Exception) {
             pendingRequests.remove(requestId)
-            Log.e(TAG, "❌ Failed to send sync request", e)
+            Log.e(TAG, "Failed to send sync request", e)
             throw e
         }
     }
@@ -617,8 +617,8 @@ class SyncManager(
         // Implementation for handling files list request
     }
       fun handleSyncRequestFile(message: String, senderAddress: String) {
-        Log.d(TAG, "📁 HANDLE SYNC REQUEST FILE - Processing file request from $senderAddress")
-        Log.d(TAG, "📁 HANDLE SYNC REQUEST FILE - Message: $message")
+        Log.d(TAG, "HANDLE SYNC REQUEST FILE - Processing file request from $senderAddress")
+        Log.d(TAG, "HANDLE SYNC REQUEST FILE - Message: $message")
         
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -633,11 +633,11 @@ class SyncManager(
                 val requestedFilePath = requestJson.getString("filePath")
                 val requestedFileName = requestJson.getString("fileName")
                 
-                Log.d(TAG, "📁 HANDLE SYNC REQUEST FILE - Requested file: $requestedFileName at path: $requestedFilePath")
+                Log.d(TAG, "HANDLE SYNC REQUEST FILE - Requested file: $requestedFileName at path: $requestedFilePath")
                 
                 // Find the file in the currently selected folder
                 if (!fileManager.hasSelectedFolder()) {
-                    Log.e(TAG, "❌ HANDLE SYNC REQUEST FILE - No folder selected")
+                    Log.e(TAG, "HANDLE SYNC REQUEST FILE - No folder selected")
                     return@launch
                 }
                 
@@ -645,7 +645,7 @@ class SyncManager(
                 val requestedFile = findFileInFolder(folderUri, requestedFileName, requestedFilePath)
                 
                 if (requestedFile != null) {
-                    Log.d(TAG, "✅ HANDLE SYNC REQUEST FILE - File found, sending: $requestedFileName")
+                    Log.d(TAG, "HANDLE SYNC REQUEST FILE - File found, sending: $requestedFileName")
                     
                     // Read the file content
                     val fileBytes = context.contentResolver.openInputStream(requestedFile.uri)?.use { inputStream ->
@@ -653,7 +653,7 @@ class SyncManager(
                     }
                     
                     if (fileBytes != null) {
-                        Log.d(TAG, "📤 HANDLE SYNC REQUEST FILE - File read successfully, size: ${fileBytes.size} bytes")
+                        Log.d(TAG, "HANDLE SYNC REQUEST FILE - File read successfully, size: ${fileBytes.size} bytes")
                         
                         // Create file metadata
                         val fileMetadata = FileMetadata(
@@ -669,16 +669,16 @@ class SyncManager(
                         
                         addSyncLog("SYNC_REQUEST_FILE", "File sent successfully: ${fileBytes.size} bytes", requestedFileName)
                     } else {
-                        Log.e(TAG, "❌ HANDLE SYNC REQUEST FILE - Failed to read file content")
+                        Log.e(TAG, "HANDLE SYNC REQUEST FILE - Failed to read file content")
                         addSyncLog("SYNC_REQUEST_FILE", "Failed to read file content", requestedFileName)
                     }
                 } else {
-                    Log.w(TAG, "⚠️ HANDLE SYNC REQUEST FILE - File not found: $requestedFileName")
+                    Log.w(TAG, "HANDLE SYNC REQUEST FILE - File not found: $requestedFileName")
                     addSyncLog("SYNC_REQUEST_FILE", "File not found in local folder", requestedFileName)
                 }
                 
             } catch (e: Exception) {
-                Log.e(TAG, "❌ HANDLE SYNC REQUEST FILE - Error processing file request", e)
+                Log.e(TAG, "HANDLE SYNC REQUEST FILE - Error processing file request", e)
                 addSyncLog("SYNC_REQUEST_FILE", "Error processing file request: ${e.message}", "Unknown")
             }
         }
@@ -747,14 +747,14 @@ class SyncManager(
         _syncRequests.value = currentRequests
     }
       fun handleFolderStructureRequest(requestJson: String, senderAddress: String) {
-        Log.d(TAG, "🗂️ Handling folder structure request from $senderAddress")
+        Log.d(TAG, "Handling folder structure request from $senderAddress")
         try {
             val jsonObj = JSONObject(requestJson)
             val folderPath = jsonObj.getString("folderPath")
             val requestId = jsonObj.optString("requestId", "")
             val timestamp = jsonObj.optLong("timestamp", System.currentTimeMillis())
             
-            Log.d(TAG, "📁 Folder structure requested for: $folderPath (request ID: $requestId)")
+            Log.d(TAG, "Folder structure requested for: $folderPath (request ID: $requestId)")
               // In a real implementation, you would scan the requested folder and return its structure
             // For now, we'll scan the currently selected folder if available
             CoroutineScope(Dispatchers.IO).launch {
@@ -762,7 +762,7 @@ class SyncManager(
                     val folderStructure = if (fileManager.hasSelectedFolder()) {
                         // Scan the currently selected folder
                         val files = scanFolder(fileManager.selectedFolderUri!!)
-                        Log.d(TAG, "📁 Scanned selected folder: ${files.size} files found")
+                        Log.d(TAG, "Scanned selected folder: ${files.size} files found")
                         
                         // Convert to JSON array
                         val filesArray = JSONArray()
@@ -779,7 +779,7 @@ class SyncManager(
                         }
                         filesArray
                     } else {
-                        Log.w(TAG, "📁 No folder selected, sending empty response")
+                        Log.w(TAG, "No folder selected, sending empty response")
                         JSONArray()
                     }
                     
@@ -796,11 +796,11 @@ class SyncManager(
                     
                     // Send response back to requester
                     val responseMessage = "SYNC_FOLDER_STRUCTURE_RESPONSE:${response}"
-                    Log.d(TAG, "📤 Sending folder structure response to $senderAddress (${folderStructure.length()} files)")
+                    Log.d(TAG, "Sending folder structure response to $senderAddress (${folderStructure.length()} files)")
                     wifiDirectManager.sendMessage(responseMessage, senderAddress)
                     
                 } catch (e: Exception) {
-                    Log.e(TAG, "❌ Error scanning folder for structure request", e)
+                    Log.e(TAG, "Error scanning folder for structure request", e)
                     
                     // Send error response
                     val errorResponse = JSONObject().apply {
@@ -819,10 +819,10 @@ class SyncManager(
             }
             
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Error handling folder structure request", e)
+            Log.e(TAG, "Error handling folder structure request", e)
         }
     }fun handleSyncResponse(response: String) {
-        Log.d(TAG, "🔄 Handling sync response: $response")
+        Log.d(TAG, "Handling sync response: $response")
         
         try {
             // Check if this is a folder structure response
@@ -839,22 +839,22 @@ class SyncManager(
             if (requestId.isNotEmpty()) {
                 val pendingRequest = pendingRequests.remove(requestId)
                 if (pendingRequest != null) {
-                    Log.d(TAG, "✅ Completing pending request: $requestId")
+                    Log.d(TAG, "Completing pending request: $requestId")
                     pendingRequest.complete(response)
                 } else {
-                    Log.w(TAG, "⚠️ Received response for unknown request ID: $requestId")
+                    Log.w(TAG, "Received response for unknown request ID: $requestId")
                 }
             } else {
-                Log.w(TAG, "⚠️ Received response without request ID")
+                Log.w(TAG, "Received response without request ID")
             }
             
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Error handling sync response", e)
+            Log.e(TAG, "Error handling sync response", e)
         }
     }
     
     private fun handleFolderStructureResponse(responseData: String) {
-        Log.d(TAG, "🗂️ Handling folder structure response")
+        Log.d(TAG, "Handling folder structure response")
         
         try {
             val jsonResponse = JSONObject(responseData)
@@ -863,17 +863,17 @@ class SyncManager(
             if (requestId.isNotEmpty()) {
                 val pendingRequest = pendingRequests.remove(requestId)
                 if (pendingRequest != null) {
-                    Log.d(TAG, "✅ Completing folder structure request: $requestId")
+                    Log.d(TAG, "Completing folder structure request: $requestId")
                     pendingRequest.complete(responseData)
                 } else {
-                    Log.w(TAG, "⚠️ Received folder structure response for unknown request ID: $requestId")
+                    Log.w(TAG, "Received folder structure response for unknown request ID: $requestId")
                 }
             } else {
-                Log.w(TAG, "⚠️ Received folder structure response without request ID")
+                Log.w(TAG, "Received folder structure response without request ID")
             }
             
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Error handling folder structure response", e)
+            Log.e(TAG, "Error handling folder structure response", e)
         }
     }
 
@@ -915,13 +915,13 @@ class SyncManager(
                 // Check if this is the file we're looking for
                 val currentFileName = file.name ?: ""
                 if (currentFileName == fileName) {
-                    Log.d(TAG, "🔍 FIND FILE - Found file: $currentFileName")
+                    Log.d(TAG, "FIND FILE - Found file: $currentFileName")
                     return file
                 }
                 
                 // Also check if the path matches (in case of duplicate names)
                 if (targetPath.endsWith(currentFileName) && currentFileName == fileName) {
-                    Log.d(TAG, "🔍 FIND FILE - Found file by path: $targetPath")
+                    Log.d(TAG, "FIND FILE - Found file by path: $targetPath")
                     return file
                 }
             }
@@ -945,14 +945,14 @@ class SyncManager(
      */
     private suspend fun configureSyncDestination(folderUri: Uri) = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "🔧 CONFIGURE SYNC - Setting up sync destination: $folderUri")
+            Log.d(TAG, "CONFIGURE SYNC - Setting up sync destination: $folderUri")
             
             // Convert SAF URI to a temporary directory path that can be used by FileReceiver
             // Since FileReceiver uses File paths, we need to create a temp directory bridge
             val syncTempDir = File(context.cacheDir, "sync_temp_${System.currentTimeMillis()}")
             syncTempDir.mkdirs()
             
-            Log.d(TAG, "🔧 CONFIGURE SYNC - Created temp sync directory: ${syncTempDir.absolutePath}")
+            Log.d(TAG, "CONFIGURE SYNC - Created temp sync directory: ${syncTempDir.absolutePath}")
             
             // Stop any existing file receiver
             wifiDirectManager.stopReceivingFiles()
@@ -965,7 +965,7 @@ class SyncManager(
             )
             
             if (result.isSuccess) {
-                Log.d(TAG, "✅ CONFIGURE SYNC - Successfully configured sync destination")
+                Log.d(TAG, "CONFIGURE SYNC - Successfully configured sync destination")
                 
                 // Store the sync folder URI for later use
                 currentSyncFolderUri = folderUri
@@ -973,12 +973,12 @@ class SyncManager(
                 // Clean up old temp directories (keep only recent ones)
                 cleanupOldSyncTempDirs()
             } else {
-                Log.e(TAG, "❌ CONFIGURE SYNC - Failed to configure sync destination")
+                Log.e(TAG, "CONFIGURE SYNC - Failed to configure sync destination")
                 throw Exception("Failed to start file receiver for sync")
             }
             
         } catch (e: Exception) {
-            Log.e(TAG, "❌ CONFIGURE SYNC - Exception during sync configuration", e)
+            Log.e(TAG, "CONFIGURE SYNC - Exception during sync configuration", e)
             throw e
         }
     }
@@ -998,13 +998,13 @@ class SyncManager(
                 ?.forEach { oldDir ->
                     try {
                         oldDir.deleteRecursively()
-                        Log.d(TAG, "🧹 CLEANUP - Removed old sync temp dir: ${oldDir.name}")
+                        Log.d(TAG, "CLEANUP - Removed old sync temp dir: ${oldDir.name}")
                     } catch (e: Exception) {
-                        Log.w(TAG, "⚠️ CLEANUP - Failed to remove old sync temp dir: ${oldDir.name}")
+                        Log.w(TAG, "CLEANUP - Failed to remove old sync temp dir: ${oldDir.name}")
                     }
                 }
         } catch (e: Exception) {
-            Log.w(TAG, "⚠️ CLEANUP - Error during temp directory cleanup", e)
+            Log.w(TAG, "CLEANUP - Error during temp directory cleanup", e)
         }
     }
 

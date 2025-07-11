@@ -303,50 +303,50 @@ class WiFiDirectManager(private val context: Context) : EventReceiver.WiFiDirect
                 when {
                     message.startsWith("SYNC_REQUEST:") -> {
                         val requestJson = message.removePrefix("SYNC_REQUEST:")
-                        Log.d(TAG, "🔄 SYNC REQUEST DETECTED: $requestJson")
+                        Log.d(TAG, "SYNC REQUEST DETECTED: $requestJson")
                         callback?.onSyncRequestReceived(requestJson, senderAddress)
                     }
                     message.startsWith("SYNC_FOLDER_STRUCTURE_REQUEST:") -> {
                         val requestJson = message.removePrefix("SYNC_FOLDER_STRUCTURE_REQUEST:")
-                        Log.d(TAG, "🗂️ SYNC FOLDER STRUCTURE REQUEST DETECTED: $requestJson")
+                        Log.d(TAG, "SYNC FOLDER STRUCTURE REQUEST DETECTED: $requestJson")
                         callback?.onSyncRequestReceived(requestJson, senderAddress)
                     }
                     message.startsWith("SYNC_FOLDER_STRUCTURE_RESPONSE:") -> {
-                        Log.d(TAG, "🗂️ SYNC FOLDER STRUCTURE RESPONSE DETECTED: $message")
+                        Log.d(TAG, "SYNC FOLDER STRUCTURE RESPONSE DETECTED: $message")
                         callback?.onSyncResponseReceived(message, senderAddress)
                     }
                     message.startsWith("SYNC_ACCEPTED:") || message.startsWith("SYNC_REJECTED:") -> {
-                        Log.d(TAG, "✅ SYNC RESPONSE DETECTED: $message")
+                        Log.d(TAG, "SYNC RESPONSE DETECTED: $message")
                         callback?.onSyncResponseReceived(message, senderAddress)
                     }
                     message.startsWith("SYNC_PROGRESS:") -> {
                         val progressJson = message.removePrefix("SYNC_PROGRESS:")
-                        Log.d(TAG, "📊 SYNC PROGRESS DETECTED: $progressJson")
+                        Log.d(TAG, "SYNC PROGRESS DETECTED: $progressJson")
                         callback?.onSyncProgressReceived(progressJson, senderAddress)
                     }
                     message.startsWith("SYNC_START_TRANSFER:") -> {
-                        Log.d(TAG, "🚀 SYNC START TRANSFER DETECTED: $message")
+                        Log.d(TAG, "SYNC START TRANSFER DETECTED: $message")
                         callback?.onSyncStartTransferReceived(message, senderAddress)
                     }
                     message.startsWith("SYNC_REQUEST_FILES_LIST:") -> {
                         val folderPath = message.removePrefix("SYNC_REQUEST_FILES_LIST:")
-                        Log.d(TAG, "📋 SYNC REQUEST FILES LIST DETECTED: $folderPath")
+                        Log.d(TAG, "SYNC REQUEST FILES LIST DETECTED: $folderPath")
                         callback?.onSyncRequestFilesListReceived(folderPath, senderAddress)
                     }                    message.startsWith("SYNC_REQUEST_FILE:") -> {
-                        Log.d(TAG, "📁 SYNC REQUEST FILE DETECTED: $message")
+                        Log.d(TAG, "SYNC REQUEST FILE DETECTED: $message")
                         callback?.onSyncRequestFileReceived(message, senderAddress)
                     }
                     message.startsWith("SYNC_FILE_REQUEST:") -> {
-                        Log.d(TAG, "📁 SYNC FILE REQUEST DETECTED: $message")
+                        Log.d(TAG, "SYNC FILE REQUEST DETECTED: $message")
                         callback?.onSyncRequestFileReceived(message, senderAddress)
                     }
                     message.startsWith("SYNC_FILES_LIST_RESPONSE:") -> {
                         val filesListJson = message.removePrefix("SYNC_FILES_LIST_RESPONSE:")
-                        Log.d(TAG, "📋 SYNC FILES LIST RESPONSE DETECTED: $filesListJson")
+                        Log.d(TAG, "SYNC FILES LIST RESPONSE DETECTED: $filesListJson")
                         callback?.onSyncFilesListResponseReceived(filesListJson, senderAddress)
                     }
                     else -> {
-                        Log.d(TAG, "💬 REGULAR MESSAGE DETECTED")
+                        Log.d(TAG, "REGULAR MESSAGE DETECTED")
                         // Regular message
                         callback?.onMessageReceived(message, senderAddress)
                     }
@@ -381,30 +381,30 @@ class WiFiDirectManager(private val context: Context) : EventReceiver.WiFiDirect
                       // If we have a synced folder URI, copy the file there as well
                     if (syncedFolderUri != null && metadata != null) {
                         try {
-                            android.util.Log.d("WiFiDirectManager", "🔄 SYNC FILE RECEIVE - Processing file for sync")
-                            android.util.Log.d("WiFiDirectManager", "🔄 SYNC FILE RECEIVE - File path: $filePath")
-                            android.util.Log.d("WiFiDirectManager", "🔄 SYNC FILE RECEIVE - File name: ${metadata.fileName}")
-                            android.util.Log.d("WiFiDirectManager", "🔄 SYNC FILE RECEIVE - Synced folder URI: $syncedFolderUri")
-                            android.util.Log.d("WiFiDirectManager", "🔄 SYNC FILE RECEIVE - Sender address: $senderAddress")
+                            android.util.Log.d("WiFiDirectManager", "SYNC FILE RECEIVE - Processing file for sync")
+                            android.util.Log.d("WiFiDirectManager", "SYNC FILE RECEIVE - File path: $filePath")
+                            android.util.Log.d("WiFiDirectManager", "SYNC FILE RECEIVE - File name: ${metadata.fileName}")
+                            android.util.Log.d("WiFiDirectManager", "SYNC FILE RECEIVE - Synced folder URI: $syncedFolderUri")
+                            android.util.Log.d("WiFiDirectManager", "SYNC FILE RECEIVE - Sender address: $senderAddress")
                             
                             val file = java.io.File(filePath)
                             if (file.exists()) {
                                 val fileBytes = file.readBytes()
-                                android.util.Log.d("WiFiDirectManager", "🔄 SYNC FILE RECEIVE - File bytes read: ${fileBytes.size}")
+                                android.util.Log.d("WiFiDirectManager", "SYNC FILE RECEIVE - File bytes read: ${fileBytes.size}")
                                 
                                 // Use FileManager to write to the proper SAF folder
                                 // This will be handled by the callback
                                 callback?.onFileReceived(filePath, senderAddress)
-                                android.util.Log.d("WiFiDirectManager", "🔄 SYNC FILE RECEIVE - Calling onSyncFileReceived callback")
+                                android.util.Log.d("WiFiDirectManager", "SYNC FILE RECEIVE - Calling onSyncFileReceived callback")
                                 callback?.onSyncFileReceived(filePath, metadata.fileName, fileBytes, syncedFolderUri, senderAddress)
                             } else {
-                                android.util.Log.e("WiFiDirectManager", "❌ SYNC FILE RECEIVE - Temp file does not exist: $filePath")
+                                android.util.Log.e("WiFiDirectManager", "SYNC FILE RECEIVE - Temp file does not exist: $filePath")
                             }
                         } catch (e: Exception) {
-                            android.util.Log.e("WiFiDirectManager", "❌ SYNC FILE RECEIVE - Error copying file to sync folder", e)
+                            android.util.Log.e("WiFiDirectManager", "SYNC FILE RECEIVE - Error copying file to sync folder", e)
                         }
                     } else {
-                        android.util.Log.d("WiFiDirectManager", "🔄 REGULAR FILE RECEIVE - No sync folder URI, using regular callback")
+                        android.util.Log.d("WiFiDirectManager", "REGULAR FILE RECEIVE - No sync folder URI, using regular callback")
                         callback?.onFileReceived(filePath, senderAddress)
                     }
                 },
