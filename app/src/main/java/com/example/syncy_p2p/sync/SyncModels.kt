@@ -1,14 +1,20 @@
 package com.example.syncy_p2p.sync
 
 import android.net.Uri
-import android.os.Parcelable
-import kotlinx.parcelize.Parcelize
 import java.io.Serializable
+
+/**
+ * Sync modes available for folder synchronization
+ */
+enum class SyncMode {
+    TWO_WAY,        // Use Case 1: Bidirectional sync
+    ONE_WAY_BACKUP, // Use Case 2: Source to destination only
+    ONE_WAY_MIRROR  // Use Case 3: Master to mirror (with deletions)
+}
 
 /**
  * Represents a sync request sent from one device to another
  */
-@Parcelize
 data class SyncRequest(
     val requestId: String,
     val sourceDeviceId: String,
@@ -19,7 +25,7 @@ data class SyncRequest(
     val totalSize: Long,
     val timestamp: Long = System.currentTimeMillis(),
     val status: SyncRequestStatus = SyncRequestStatus.PENDING
-) : Parcelable
+) : Serializable
 
 /**
  * Status of a sync request
@@ -37,7 +43,6 @@ enum class SyncRequestStatus {
 /**
  * Represents a synchronized folder on a device
  */
-@Parcelize
 data class SyncedFolder(
     val id: String,
     val name: String,
@@ -50,7 +55,7 @@ data class SyncedFolder(
     val status: SyncStatus,
     val autoSync: Boolean = true,
     val conflictResolution: ConflictResolution = ConflictResolution.ASK_USER
-) : Parcelable
+) : Serializable
 
 /**
  * Status of a synced folder
@@ -95,7 +100,6 @@ data class FileComparison(
 /**
  * Metadata for a file in sync comparison
  */
-@Parcelize
 data class FileMetadata(
     val name: String,
     val path: String,
@@ -103,7 +107,7 @@ data class FileMetadata(
     val lastModified: Long,
     val checksum: String?,
     val isDirectory: Boolean = false
-) : Parcelable
+) : Serializable
 
 /**
  * What action should be taken for a file during sync
@@ -145,7 +149,6 @@ data class SyncProgress(
 /**
  * Log entry for sync operations
  */
-@Parcelize
 data class SyncLogEntry(
     val id: String,
     val folderName: String,
@@ -155,12 +158,11 @@ data class SyncLogEntry(
     val status: SyncLogStatus,
     val message: String,
     val deviceName: String
-) : Parcelable
+) : Serializable
 
 /**
  * Represents a file conflict that needs user resolution
  */
-@Parcelize
 data class FileConflict(
     val id: String,
     val fileName: String,
@@ -170,7 +172,7 @@ data class FileConflict(
     val remoteFileSize: Long,
     val remoteLastModified: Long,
     val conflictType: ConflictType
-) : Parcelable
+) : Serializable
 
 /**
  * Status of a sync log entry

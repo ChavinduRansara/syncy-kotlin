@@ -15,12 +15,6 @@ import java.io.File
 import java.security.MessageDigest
 import java.util.*
 
-enum class SyncMode {
-    TWO_WAY,        // Use Case 1: Bidirectional sync
-    ONE_WAY_BACKUP, // Use Case 2: Source to destination only
-    ONE_WAY_MIRROR  // Use Case 3: Master to mirror (with deletions)
-}
-
 data class SyncConfiguration(
     val mode: SyncMode,
     val folderPath: String,
@@ -93,7 +87,7 @@ class SyncManager(
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
             val syncId = UUID.randomUUID().toString()
-            val folderPath = fileManager.getFolderDisplayPath(localFolderUri) ?: "Unknown"
+            val folderPath = fileManager.getFolderDisplayPath(localFolderUri)
             
             Log.d(TAG, "Starting folder sync: $folderPath with mode: $mode")
             
@@ -371,14 +365,14 @@ class SyncManager(
 
     // **File System Monitoring for Real-Time Sync**
 
-    fun startRealTimeMonitoring(folderUri: Uri, targetDeviceAddress: String, mode: SyncMode) {
+    fun startRealTimeMonitoring(folderUri: Uri, _targetDeviceAddress: String, _mode: SyncMode) {
         // Start file system monitoring for automatic sync
         CoroutineScope(Dispatchers.IO).launch {
             while (true) {
                 delay(5000) // Check every 5 seconds
                 
                 try {
-                    val currentFiles = scanFolder(folderUri)
+                    scanFolder(folderUri) // Check for changes
                     // Compare with last known state and trigger sync if changes detected
                     // Implementation would store last known state and compare
                 } catch (e: Exception) {
@@ -431,7 +425,8 @@ class SyncManager(
             
             Log.d(TAG, "SEND FILE TO TARGET - Created temp file: ${tempFile.absolutePath}, size: ${tempFile.length()}, exists: ${tempFile.exists()}")
             
-            wifiDirectManager.sendFile(tempFile.absolutePath, targetAddress)
+            // Use sendFileWithOriginalName to preserve the original file name
+            wifiDirectManager.sendFileWithOriginalName(tempFile.absolutePath, fileMetadata.name, targetAddress)
             
             // Don't delete immediately - let FileSender handle cleanup after transfer completes
             // Schedule cleanup with a delay to ensure transfer has time to complete
@@ -547,7 +542,7 @@ class SyncManager(
         }
     }
 
-    private fun updateSyncProgress(syncId: String, completed: Int, total: Int, currentFile: String) {
+    private fun updateSyncProgress(_syncId: String, completed: Int, total: Int, currentFile: String) {
         _currentSyncProgress.value = SyncProgress(
             folderName = "Sync Session",
             currentFile = currentFile,
@@ -557,7 +552,7 @@ class SyncManager(
             totalBytes = 0,
             status = "Processing $currentFile"
         )
-    }    private fun addSyncLog(syncId: String, message: String, fileName: String? = null) {
+    }    private fun addSyncLog(_syncId: String, message: String, fileName: String? = null) {
         val logEntry = SyncLogEntry(
             id = UUID.randomUUID().toString(),
             folderName = "Sync Session", // Will be updated with actual folder name
@@ -609,7 +604,7 @@ class SyncManager(
     // Keep all your existing sync request handling methods...
     
     // Add the new enhanced methods to work with the existing infrastructure
-    fun handleSyncStartTransfer(folderId: String, folderName: String, senderAddress: String) {
+    fun handleSyncStartTransfer(_folderId: String, _folderName: String, _senderAddress: String) {
         // Implementation for handling sync start transfer
     }
     
@@ -683,7 +678,7 @@ class SyncManager(
             }
         }
     }
-      fun handleSyncFilesListResponse(filesListJson: String, senderAddress: String) {
+      fun handleSyncFilesListResponse(_filesListJson: String, _senderAddress: String) {
         // Implementation for handling files list response
     }
 
@@ -752,7 +747,7 @@ class SyncManager(
             val jsonObj = JSONObject(requestJson)
             val folderPath = jsonObj.getString("folderPath")
             val requestId = jsonObj.optString("requestId", "")
-            val timestamp = jsonObj.optLong("timestamp", System.currentTimeMillis())
+            jsonObj.optLong("timestamp", System.currentTimeMillis()) // timestamp for logging
             
             Log.d(TAG, "Folder structure requested for: $folderPath (request ID: $requestId)")
               // In a real implementation, you would scan the requested folder and return its structure

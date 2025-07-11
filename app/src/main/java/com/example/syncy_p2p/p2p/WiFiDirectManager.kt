@@ -132,7 +132,7 @@ class WiFiDirectManager(private val context: Context) : EventReceiver.WiFiDirect
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start peer discovery", e)
             Result.failure(e)
-        } ?: Result.failure(Exception("Manager not initialized"))
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -153,7 +153,7 @@ class WiFiDirectManager(private val context: Context) : EventReceiver.WiFiDirect
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
-        } ?: Result.failure(Exception("Manager not initialized"))
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -182,7 +182,7 @@ class WiFiDirectManager(private val context: Context) : EventReceiver.WiFiDirect
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
-        } ?: Result.failure(Exception("Manager not initialized"))
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -203,7 +203,7 @@ class WiFiDirectManager(private val context: Context) : EventReceiver.WiFiDirect
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
-        } ?: Result.failure(Exception("Manager not initialized"))
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -224,7 +224,7 @@ class WiFiDirectManager(private val context: Context) : EventReceiver.WiFiDirect
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
-        } ?: Result.failure(Exception("Manager not initialized"))
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -245,7 +245,7 @@ class WiFiDirectManager(private val context: Context) : EventReceiver.WiFiDirect
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
-        } ?: Result.failure(Exception("Manager not initialized"))
+        }
     }    fun sendMessage(message: String, targetAddress: String? = null): Result<Unit> {
         val address = targetAddress ?: getTargetAddress()
         if (address == null) {
@@ -278,6 +278,27 @@ class WiFiDirectManager(private val context: Context) : EventReceiver.WiFiDirect
                 putExtra(FileSender.EXTRAS_FILE_PATH, filePath)
                 putExtra(FileSender.EXTRAS_ADDRESS, address)
                 putExtra(FileSender.EXTRAS_PORT, Config.FILE_PORT)
+            }
+
+            context.startForegroundService(intent)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to send file", e)
+            Result.failure(e)
+        }
+    }    fun sendFileWithOriginalName(filePath: String, originalFileName: String, targetAddress: String? = null): Result<Unit> {
+        val address = targetAddress ?: getTargetAddress()
+        if (address == null) {
+            return Result.failure(Exception("No peer connected to send file to"))
+        }
+
+        Log.d(TAG, "Sending file to: $address with original name: $originalFileName")
+        return try {            val intent = Intent(context, FileSender::class.java).apply {
+                action = FileSender.ACTION_SEND_FILE
+                putExtra(FileSender.EXTRAS_FILE_PATH, filePath)
+                putExtra(FileSender.EXTRAS_ADDRESS, address)
+                putExtra(FileSender.EXTRAS_PORT, Config.FILE_PORT)
+                putExtra(FileSender.EXTRAS_ORIGINAL_FILE_NAME, originalFileName)
             }
 
             context.startForegroundService(intent)

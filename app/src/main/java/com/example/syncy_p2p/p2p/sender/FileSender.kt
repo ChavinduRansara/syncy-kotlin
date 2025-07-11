@@ -31,6 +31,7 @@ class FileSender : Service() {
         const val EXTRAS_FILE_PATH = "file_path"
         const val EXTRAS_ADDRESS = "target_address"
         const val EXTRAS_PORT = "target_port"
+        const val EXTRAS_ORIGINAL_FILE_NAME = "original_file_name"
     }
 
     override fun onCreate() {
@@ -56,6 +57,7 @@ class FileSender : Service() {
         val filePath = intent.getStringExtra(EXTRAS_FILE_PATH)
         val host = intent.getStringExtra(EXTRAS_ADDRESS)
         val port = intent.getIntExtra(EXTRAS_PORT, Config.DEFAULT_PORT)
+        val originalFileName = intent.getStringExtra(EXTRAS_ORIGINAL_FILE_NAME)
 
         if (filePath.isNullOrEmpty() || host.isNullOrEmpty()) {
             Log.e(TAG, "Missing file path or host address")
@@ -87,11 +89,18 @@ class FileSender : Service() {
         }
 
         Log.d(TAG, "Sending file ${file.name} (${file.length()} bytes) to $host:$port")
-        updateNotification("Sending ${file.name}...")        // Create metadata
+        
+        // Use original file name if provided, otherwise use the actual file name
+        val displayName = originalFileName ?: file.name
+        val fileNameToSend = originalFileName ?: file.name
+        
+        updateNotification("Sending $displayName...")        
+        
+        // Create metadata with original file name preserved
         val metadata = FileTransferMetadata(
-            fileName = file.name,
+            fileName = fileNameToSend,
             fileSize = file.length(),
-            mimeType = Utils.getMimeType(file.name)
+            mimeType = Utils.getMimeType(fileNameToSend)
         )
 
         val maxConnectionRetries = Config.MAX_RETRIES
@@ -110,7 +119,7 @@ class FileSender : Service() {
                 
                 socket.connect(InetSocketAddress(host, port), Config.SOCKET_TIMEOUT)
                 
-                updateNotification("Connected! Sending ${file.name}...")
+                updateNotification("Connected! Sending $displayName...")
                 Log.d(TAG, "Successfully connected to $host:$port")
                 
                 val inputStream = FileInputStream(file).buffered()
@@ -120,15 +129,15 @@ class FileSender : Service() {
                 Utils.sendMetadata(outputStream, metadata)
                 
                 // Send file with progress tracking and retry logic
-                val success = sendFileWithProgress(inputStream, outputStream, metadata)
+                val success = sendFileWithProgress(inputStream, outputStream, metadata, displayName)
                 
                 if (success) {
                     Log.d(TAG, "File sent successfully")
-                    updateNotification("File sent successfully")
+                    updateNotification("$displayName sent successfully")
                     connectionSuccess = true
                 } else {
                     Log.e(TAG, "Failed to send file content")
-                    updateNotification("Failed to send file content")
+                    updateNotification("Failed to send $displayName")
                 }
                 
                 // Keep notification for a brief moment
@@ -179,7 +188,8 @@ class FileSender : Service() {
     }    private suspend fun sendFileWithProgress(
         inputStream: java.io.InputStream,
         outputStream: java.io.OutputStream,
-        metadata: FileTransferMetadata
+        metadata: FileTransferMetadata,
+        displayName: String = metadata.fileName
     ): Boolean = withContext(Dispatchers.IO) {
         try {
             val buffer = ByteArray(Config.BUFFER_SIZE)
@@ -214,9 +224,9 @@ class FileSender : Service() {
                             totalBytes = metadata.fileSize
                         )
 
-                        // Update notification with progress
+                        // Update notification with progress using display name
                         val percentageText = if (progress.percentage > 0) " (${progress.percentage}%)" else ""
-                        updateNotification("Sending ${metadata.fileName}$percentageText")
+                        updateNotification("Sending $displayName$percentageText")
 
                         // Small delay to prevent excessive UI updates
                         if (bytesTransferred % (Config.BUFFER_SIZE * 10) == 0L) {

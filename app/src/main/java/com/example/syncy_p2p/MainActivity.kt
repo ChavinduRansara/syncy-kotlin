@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.DocumentsContract
+import android.provider.OpenableColumns
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -29,6 +30,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
+import java.io.File
 import com.example.syncy_p2p.p2p.core.DeviceInfo
 import com.example.syncy_p2p.ui.PeerAdapter
 import com.example.syncy_p2p.files.FileManager
@@ -36,7 +38,6 @@ import com.example.syncy_p2p.files.FileAdapter
 import com.example.syncy_p2p.files.FileItem
 import com.example.syncy_p2p.files.FileTransferProgress
 import com.example.syncy_p2p.sync.SyncManager
-import java.io.File
 import org.json.JSONObject
 
 class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
@@ -162,15 +163,11 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
         }
 
         binding.btnSyncFolder.setOnClickListener {
-            initiateSync()
+            startFolderSyncWithMode()
         }
 
         binding.btnSyncManagement.setOnClickListener {
             openSyncManagement()
-        }
-
-        binding.btnSyncFolder.setOnClickListener {
-            startFolderSyncWithMode()
         }
     }
 
@@ -225,9 +222,9 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
         
         // Observe sync state changes
         lifecycleScope.launch {
-            syncManager.syncRequests.collect { requests ->
+            syncManager.syncRequests.collect { requests: List<com.example.syncy_p2p.sync.SyncRequest> ->
                 // Handle incoming sync requests - show notification to user
-                requests.forEach { request ->
+                requests.forEach { request: com.example.syncy_p2p.sync.SyncRequest ->
                     if (request.status == com.example.syncy_p2p.sync.SyncRequestStatus.PENDING) {
                         showSyncRequestDialog(request)
                     }
@@ -236,21 +233,21 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
         }
         
         lifecycleScope.launch {
-            syncManager.syncedFolders.collect { folders ->
+            syncManager.syncedFolders.collect { folders: List<com.example.syncy_p2p.sync.SyncedFolder> ->
                 // Update UI with synced folders
                 updateSyncedFoldersDisplay(folders)
             }
         }
         
         lifecycleScope.launch {
-            syncManager.currentProgress.collect { progress ->
+            syncManager.currentProgress.collect { progress: com.example.syncy_p2p.sync.SyncProgress? ->
                 // Update sync progress in UI
                 updateSyncProgress(progress)
             }
         }
         
         lifecycleScope.launch {
-            syncManager.syncLogs.collect { logs ->
+            syncManager.syncLogs.collect { logs: List<com.example.syncy_p2p.sync.SyncLogEntry> ->
                 // Update sync logs in UI
                 updateSyncLogs(logs)
             }
@@ -416,10 +413,21 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
 
     private fun handleSelectedFile(uri: Uri) {
         try {
+            // Get the original file name from the URI
+            val originalFileName = getFileNameFromUri(uri) ?: "unknown_file"
+            
             // Get the actual file path
-            val filePath = getRealPathFromUri(uri)
+            val filePath = getRealPathFromUri(uri, originalFileName)
             if (filePath != null) {
-                val result = wifiDirectManager.sendFile(filePath)
+                // Check if we created a temp file (which would need original name preserved)
+                val isTemporaryFile = filePath.contains("temp_")
+                
+                val result = if (isTemporaryFile) {
+                    wifiDirectManager.sendFileWithOriginalName(filePath, originalFileName)
+                } else {
+                    wifiDirectManager.sendFile(filePath)
+                }
+                
                 result.onSuccess {
                     Toast.makeText(this, "File sent", Toast.LENGTH_SHORT).show()
                 }.onFailure { error ->
@@ -508,15 +516,14 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
                         tempFile.setReadable(true, false)
                         tempFile.setWritable(true, false)
                         
-                        var bytesWritten = 0L
                         tempFile.outputStream().use { output ->
-                            bytesWritten = stream.copyTo(output)
+                            val bytesWritten = stream.copyTo(output)
+                            Log.d("MainActivity", "Created temp file: ${tempFile.absolutePath}, size: $bytesWritten bytes, exists: ${tempFile.exists()}")
                         }
                         
-                        Log.d("MainActivity", "Created temp file: ${tempFile.absolutePath}, size: $bytesWritten bytes, exists: ${tempFile.exists()}")
-                        
                         if (tempFile.exists() && tempFile.length() > 0) {
-                            val result = wifiDirectManager.sendFile(tempFile.absolutePath)
+                            // Send file with original name preserved
+                            val result = wifiDirectManager.sendFileWithOriginalName(tempFile.absolutePath, fileItem.name)
                             result.onSuccess {
                                 Toast.makeText(this@MainActivity, "File sent: ${fileItem.name}", Toast.LENGTH_SHORT).show()
                             }.onFailure { error ->
@@ -543,7 +550,41 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
         }
     }
 
-    private fun getRealPathFromUri(uri: Uri): String? {
+    private fun getFileNameFromUri(uri: Uri): String? {
+        return try {
+            when {
+                DocumentsContract.isDocumentUri(this, uri) -> {
+                    contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                            if (nameIndex != -1) {
+                                cursor.getString(nameIndex)
+                            } else null
+                        } else null
+                    }
+                }
+                uri.scheme == "content" -> {
+                    contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                            if (nameIndex != -1) {
+                                cursor.getString(nameIndex)
+                            } else null
+                        } else null
+                    }
+                }
+                uri.scheme == "file" -> {
+                    File(uri.path ?: "").name
+                }
+                else -> null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting file name from URI", e)
+            null
+        }
+    }
+
+    private fun getRealPathFromUri(uri: Uri, originalFileName: String? = null): String? {
         return try {
             when {
                 DocumentsContract.isDocumentUri(this, uri) -> {
@@ -561,10 +602,10 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
                         } else null
                     } else {
                         // For other document providers, copy to temp file
-                        copyUriToTempFile(uri)
+                        copyUriToTempFile(uri, originalFileName)
                     }
                 }
-                uri.scheme == "content" -> copyUriToTempFile(uri)
+                uri.scheme == "content" -> copyUriToTempFile(uri, originalFileName)
                 uri.scheme == "file" -> uri.path
                 else -> null
             }
@@ -574,10 +615,11 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
         }
     }
 
-    private fun copyUriToTempFile(uri: Uri): String? {
+    private fun copyUriToTempFile(uri: Uri, originalFileName: String? = null): String? {
         return try {
             val inputStream = contentResolver.openInputStream(uri)
-            val tempFile = File(cacheDir, "temp_${System.currentTimeMillis()}")
+            val fileNameToUse = originalFileName ?: "temp_${System.currentTimeMillis()}"
+            val tempFile = File(cacheDir, "temp_${System.currentTimeMillis()}_$fileNameToUse")
             inputStream?.use { input ->
                 tempFile.outputStream().use { output ->
                     input.copyTo(output)
@@ -969,9 +1011,9 @@ class MainActivity : AppCompatActivity(), WiFiDirectManager.WiFiDirectCallback {
                             mode
                         )
                         
-                        result.onSuccess { syncId ->
+                        result.onSuccess { syncId: String ->
                             Toast.makeText(this@MainActivity, "Folder sync started: $syncId", Toast.LENGTH_SHORT).show()
-                        }.onFailure { error ->
+                        }.onFailure { error: Throwable ->
                             Toast.makeText(this@MainActivity, "Sync failed: ${error.message}", Toast.LENGTH_LONG).show()
                         }
                     }
